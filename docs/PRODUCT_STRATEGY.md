@@ -6,6 +6,8 @@ Prepared as the CTO founding brief for 3Doors — an AI-powered career discovery
 
 Status: **Planning only. No application code has been written.** This document is Phases 1–10 of the development process (PRD → wireframes/IA → architecture). Implementation begins only after sign-off.
 
+> **Scope amendment — August 2026.** Priorities were re-sequenced after Phase 1 shipped: the **Opportunity Engine is deferred and requires explicit approval before any work starts on it** — no scraping, crawling, or automated collection of jobs/scholarships/internships/grants in the meantime, and no opportunity-matching UI presented as functional. The MVP's job is to make the **career guidance engine** (assessment → recommendation → skill gap → roadmap → side-income → AI assistant → progress → portfolio) genuinely useful on its own first. This changes the priority order in §15/§19 below; §2, §6, §9, and §31 are otherwise unchanged in substance. See the audit note in the Phase 2 commit for confirmation that no opportunity/scraping code exists in the codebase.
+
 ---
 
 ## 1. Product Requirements Document
@@ -47,7 +49,9 @@ In scope for MVP (maps to Phase 24 of the brief):
 9. Side-income recommendations engine (works from the user's *current* skills, not just their target career)
 10. AI career assistant (conversational, profile-aware, scoped to career topics)
 11. User dashboard (single home for direction, plan, and progress)
-12. Minimal admin console to manage the career knowledge base (needed to run the recommendation engine at all — see §16)
+12. Portfolio project tracker (moved forward from Phase 6 — see the August 2026 scope amendment above)
+
+Priority order within this list, per the amendment: recommendation engine → skill gap → roadmap → side-income → AI assistant → progress tracking → portfolio. The career/side-income knowledge bases are curated via a versioned seed script for now rather than a full admin UI — a pragmatic substitute for item 12 of the original list (a real admin console is still coming, just not gating this phase).
 
 Explicitly **out of MVP** — detailed in §19.
 
@@ -180,6 +184,8 @@ Relationships first, in prose, before any table definition — this is a normali
 
 **Principle: the LLM reasons over structured data it does not own the source of truth for.** The career knowledge base, skills catalog, learning resources, and opportunities are all admin-curated, database-backed facts. The LLM's job is matching, explaining, and sequencing — never inventing entities.
 
+**Implementation note (Phase 2 build).** Career/side-income fit scoring, skill-gap diffing, and roadmap generation are implemented as **deterministic TypeScript**, not LLM calls: the factors in §8's formula are all computable directly from structured rows (skills, interests, subjects, trait scores), and computing them in code rather than asking a model to reproduce arithmetic removes an entire class of hallucination and inconsistency risk — a score is reproducible and auditable, and the "why" text is built directly from which sub-scores and tags actually matched, not generated prose that might drift from the number next to it. This is a stronger reading of §7's "matching... never inventing entities" principle, not a departure from it. The only component in this phase that calls the Claude API is the free-form AI career assistant (§16 of the brief), where open-ended natural language genuinely requires it; it is gated behind `ANTHROPIC_API_KEY` and degrades to a clear "not configured" notice rather than failing silently or fabricating a reply.
+
 **Pipeline:**
 
 1. **Profile compiler** (server-side): assembles a structured JSON payload from `profiles`, `education`, `user_skills`, `user_interests`, and the latest `assessment_answers` — the shape described in §29 of the brief (education_level, subjects, interests, skills, strengths, experience, goals, work_preferences, location, available_time).
@@ -210,6 +216,8 @@ Relationships first, in prose, before any table definition — this is a normali
 | Goal match | 10% | Stated income/career goals vs. career's realistic trajectory |
 | Opportunity relevance | 5% | Density of realistic entry points in the user's country/region |
 | Learning feasibility | 5% | Gap size vs. user's available time/resources — penalizes an otherwise "perfect" career that is unrealistic to break into soon |
+
+**MVP v1 formula (Phase 2 build).** Goal match and opportunity relevance aren't honestly computable yet — goal match would need real parsing of free-text career goals, and opportunity relevance needs the (deferred) opportunity engine. Rather than fake them with a neutral placeholder score, the MVP ships with the remaining six factors renormalized to 100%: interest 25%, skill 25%, subject 15%, strength 15%, work-preference 10%, learning feasibility 10%. Both dropped factors are reintroduced when their inputs exist honestly, not before.
 
 Each match is returned with the *decomposed* score (not just the total) so the "WHY THIS CAREER MAY FIT YOU" explanation in the UI is generated from real sub-scores, not a post-hoc rationalization. Output is always a ranked list (minimum 5), explicitly framed per §30 of the brief — "law appears to be a strong potential fit," never "you should become a lawyer" — and always surfaces 2–3 adjacent alternatives per top match to avoid funneling users into one path.
 
@@ -340,14 +348,12 @@ Since this is a stated design constraint (§17, §33 of the brief), MVP UI must:
 
 | Phase | Scope | Indicative duration |
 |---|---|---|
-| **Phase 1 — Foundation** | Landing page, auth, progressive profile, self-discovery assessment | 3–4 weeks |
-| **Phase 2 — Career Engine** | Career knowledge base + admin CRUD, recommendation engine, career exploration pages, skill-gap analysis | 4–5 weeks |
-| **Phase 3 — Action** | Roadmaps, learning resource recommendations, side-income engine, progress tracking/dashboard | 3–4 weeks |
-| **Phase 4 — AI Assistant** | Conversational assistant, profile-aware context, assistant history | 2 weeks |
-| **Phase 5 — Opportunity Engine** | Opportunity database, admin verification workflow, matching | 4 weeks (post-MVP) |
-| **Phase 6 — Growth** | Portfolio builder, CV assistance, mentorship/employer matching | Post-MVP, scoped later |
+| **Phase 1 — Foundation** | Landing page, auth, progressive profile, self-discovery assessment | 3–4 weeks — shipped |
+| **Phase 2 — Career Engine** | Career + side-income knowledge bases (seed-curated), deterministic recommendation engine, career exploration pages, skill-gap analysis, roadmap generator, AI assistant, progress tracking, portfolio tracker | 6–8 weeks |
+| **Phase 3 — Opportunity Engine** | Opportunity database, verification workflow, matching — **requires explicit approval to start (see the August 2026 scope amendment)** | Not started |
+| **Phase 4 — Growth** | CV assistance, mentorship/employer matching, richer admin console | Post-MVP, scoped later |
 
-Phases 1–4 constitute the MVP (§2). Phase 5–6 begin only after MVP validation.
+Phase 1–2 constitute the MVP (§2, as amended). Side-income, the AI assistant, and the portfolio tracker were pulled forward from the original Phase 3/4/6 into Phase 2 per the amendment — the career engine now ships as one coherent unit before anything opportunity-related is touched.
 
 ---
 
@@ -405,8 +411,8 @@ Phases 1–4 constitute the MVP (§2). Phase 5–6 begin only after MVP validati
 
 ## 19. What Should NOT Be Built in the MVP
 
-- Full opportunity marketplace/feed and opportunity matching (Phase 5) — schema reserved, not implemented.
-- Portfolio builder, AI CV builder, AI interview coach, LinkedIn optimizer (Phase 6).
+- **The opportunity engine, in any form** — no scraping/crawling of LinkedIn, Indeed, Glassdoor, Google Jobs, Facebook, Telegram, WhatsApp, or any job board; no automated collection of scholarships, fellowships, grants, or internships; no opportunity matching, alerts, or employer matching; not even the reserved schema until explicitly approved (a change from the original plan, where the schema was reserved early — see the August 2026 scope amendment). Any UI slot for this stays visibly "Coming soon," never dressed up as functional.
+- AI CV builder, AI interview coach, LinkedIn optimizer.
 - Mentorship matching, employer matching, career communities.
 - WhatsApp/low-bandwidth messaging interface — architecture should not preclude it later, but it is not built now.
 - Multilingual support beyond the initial launch language — architecture (content model with a `locale` field) should not block it later.

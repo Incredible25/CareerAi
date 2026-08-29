@@ -1,11 +1,16 @@
-// 3Doors — Phase 1 schema.
+// 3Doors — schema.
 //
-// Scope is deliberately limited to what Phase 1 (Foundation) needs:
-// identity, profile, education, the shared skills/interests catalogs, and
-// the self-discovery assessment. Career knowledge base, recommendations,
-// roadmaps, side-income, and opportunities are Phase 2+ (see
-// docs/PRODUCT_STRATEGY.md §6, §15) and are intentionally not modeled yet
-// so this migration history doesn't carry tables nothing reads from.
+// Phase 1 (identity, profile, education, the shared skills/interests
+// catalogs, the self-discovery assessment) plus Phase 2, the Career
+// Guidance Engine: the career and side-income knowledge bases, generated
+// matches, skill gaps, roadmaps, the AI assistant, and the portfolio
+// tracker (docs/PRODUCT_STRATEGY.md §6, §15, and the August 2026 scope
+// amendment).
+//
+// Deliberately absent: anything opportunity-engine related (jobs,
+// scholarships, internships, employer listings). That system is deferred
+// pending explicit approval — see the scope amendment — and nothing below
+// depends on it existing.
 
 generator client {
   provider = "prisma-client-js"
@@ -48,6 +53,13 @@ model User {
   userInterests UserInterest[]
   assessments   Assessment[]
 
+  careerMatches     CareerMatch[]
+  skillGaps         SkillGap[]
+  roadmaps          Roadmap[]
+  sideIncomeMatches SideIncomeMatch[]
+  portfolioProjects PortfolioProject[]
+  aiConversations   AiConversation[]
+
   @@map("users")
 }
 
@@ -80,15 +92,15 @@ model Profile {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   careerGoals           String?
-  incomeGoal             String?
-  preferredEnvironment   WorkEnvironment?
-  availableHoursPerWeek  Int?
-  hasLaptop              Boolean?
-  hasSmartphone          Boolean?
-  internetAccess         InternetAccess?
-  languages              String[] @default([])
-  linkedinUrl            String?
-  portfolioUrl           String?
+  incomeGoal            String?
+  preferredEnvironment  WorkEnvironment?
+  availableHoursPerWeek Int?
+  hasLaptop             Boolean?
+  hasSmartphone         Boolean?
+  internetAccess        InternetAccess?
+  languages             String[]         @default([])
+  linkedinUrl           String?
+  portfolioUrl          String?
 
   // Progressive onboarding position — which step the user last completed,
   // so a return visit resumes rather than restarts
@@ -109,11 +121,11 @@ model Education {
   level       EducationLevel
   institution String?
   program     String?
-  subjects    String[] @default([])
-  strengths   String[] @default([])
-  isCurrent   Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  subjects    String[]       @default([])
+  strengths   String[]       @default([])
+  isCurrent   Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@index([userId])
   @@map("education")
@@ -128,6 +140,10 @@ model Skill {
   name       String      @unique
   category   String?
   userSkills UserSkill[]
+
+  careerSkills          CareerSkill[]
+  sideOpportunitySkills SideOpportunitySkill[]
+  skillGaps             SkillGap[]
 
   @@map("skills")
 }
@@ -180,19 +196,20 @@ enum AssessmentStatus {
 }
 
 model Assessment {
-  id          String             @id @default(cuid())
+  id          String           @id @default(cuid())
   userId      String
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status      AssessmentStatus   @default(IN_PROGRESS)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      AssessmentStatus @default(IN_PROGRESS)
   // Structured per-trait scores computed on submit (see
   // src/lib/assessment/scoring.ts). Consumed by the Phase 2 recommendation
   // engine — this is the "structured user profile" the assessment
   // (docs/PRODUCT_STRATEGY.md §5) is required to produce.
   traitScores Json?
-  startedAt   DateTime           @default(now())
+  startedAt   DateTime         @default(now())
   completedAt DateTime?
 
-  answers AssessmentAnswer[]
+  answers       AssessmentAnswer[]
+  careerMatches CareerMatch[]
 
   @@index([userId])
   @@map("assessments")
@@ -210,4 +227,289 @@ model AssessmentAnswer {
 
   @@unique([assessmentId, questionId])
   @@map("assessment_answers")
+}
+
+// ---------------------------------------------------------------------------
+// Career knowledge base (admin-curated — see prisma/seed-careers.ts)
+//
+// The recommendation engine reasons over these rows; it never invents a
+// career, skill requirement, or pathway that isn't stored here
+// (docs/PRODUCT_STRATEGY.md §7, §31).
+// ---------------------------------------------------------------------------
+
+model CareerProfile {
+  id          String @id @default(cuid())
+  slug        String @unique
+  name        String
+  description String
+  industry    String
+
+  responsibilities String[] @default([])
+
+  // Matched against Education.subjects (case-insensitive) for the
+  // Subject Match factor.
+  relevantSubjects String[] @default([])
+
+  // Matched against UserInterest for the Interest Match factor. Plain
+  // strings rather than a join table to the Interest catalog — interest
+  // relevance is a coarse, admin-authored signal, not something that
+  // needs relational integrity the way skill levels do.
+  relevantInterests String[] @default([])
+
+  // Record<TraitKey, number 0..1> — weights used for the Strength Match
+  // factor against Assessment.traitScores. Kept as JSON rather than a
+  // table since TraitKey is a small, fixed, code-defined enum
+  // (src/lib/assessment/questions.ts), not admin-editable data.
+  traitWeights Json
+
+  educationPathways     String[] @default([])
+  alternativePathways   String[] @default([])
+  certifications        String[] @default([])
+  beginnerProjects      String[] @default([])
+  portfolioRequirements String[] @default([])
+
+  remoteSuitable    Boolean           @default(false)
+  freelanceSuitable Boolean           @default(false)
+  environments      WorkEnvironment[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  careerSkills      CareerSkill[]
+  matches           CareerMatch[]
+  skillGaps         SkillGap[]
+  roadmaps          Roadmap[]
+  portfolioProjects PortfolioProject[]
+
+  relatedCareers CareerProfile[] @relation("RelatedCareers")
+  relatedTo      CareerProfile[] @relation("RelatedCareers")
+
+  @@map("career_profiles")
+}
+
+model CareerSkill {
+  id       String        @id @default(cuid())
+  careerId String
+  career   CareerProfile @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  skillId  String
+  skill    Skill         @relation(fields: [skillId], references: [id])
+  // Level a candidate is expected to reach for this skill.
+  level    SkillLevel
+
+  @@unique([careerId, skillId])
+  @@map("career_skills")
+}
+
+// ---------------------------------------------------------------------------
+// Generated career recommendations
+// ---------------------------------------------------------------------------
+
+model CareerMatch {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  careerId     String
+  career       CareerProfile @relation(fields: [careerId], references: [id])
+  assessmentId String?
+  assessment   Assessment?   @relation(fields: [assessmentId], references: [id])
+
+  fitScore  Int // 0-100
+  // Decomposed sub-scores, one key per factor in the fit-score formula
+  // (docs/PRODUCT_STRATEGY.md §8) — powers the transparent "why" UI.
+  breakdown Json
+  reasons   String[]
+  rank      Int
+
+  generatedAt DateTime @default(now())
+
+  @@unique([userId, careerId, assessmentId])
+  @@index([userId])
+  @@map("career_matches")
+}
+
+// ---------------------------------------------------------------------------
+// Skill gaps & roadmap (generated per user + chosen career)
+// ---------------------------------------------------------------------------
+
+model SkillGap {
+  id       String        @id @default(cuid())
+  userId   String
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  careerId String
+  career   CareerProfile @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  skillId  String
+  skill    Skill         @relation(fields: [skillId], references: [id])
+
+  currentLevel  SkillLevel?
+  requiredLevel SkillLevel
+  // Bigger gap = lower priority number = tackle first.
+  priority      Int
+
+  generatedAt DateTime @default(now())
+
+  @@unique([userId, careerId, skillId])
+  @@map("skill_gaps")
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+model Roadmap {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  careerId    String
+  career      CareerProfile @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  totalWeeks  Int
+  generatedAt DateTime      @default(now())
+
+  tasks RoadmapTask[]
+
+  @@unique([userId, careerId])
+  @@map("roadmaps")
+}
+
+model RoadmapTask {
+  id          String     @id @default(cuid())
+  roadmapId   String
+  roadmap     Roadmap    @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  phase       String
+  weekStart   Int
+  weekEnd     Int
+  title       String
+  description String
+  status      TaskStatus @default(PENDING)
+  order       Int
+
+  portfolioProject PortfolioProject?
+
+  @@map("roadmap_tasks")
+}
+
+// ---------------------------------------------------------------------------
+// Side-income catalog (admin-curated) & generated matches
+// ---------------------------------------------------------------------------
+
+model SideOpportunity {
+  id          String @id @default(cuid())
+  slug        String @unique
+  name        String
+  description String
+
+  tools                 String[] @default([])
+  learningNotes         String
+  starterProject        String
+  portfolioRequirements String[] @default([])
+  clientApproachTips    String[] @default([])
+
+  remoteSuitable    Boolean @default(true)
+  freelanceSuitable Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skills  SideOpportunitySkill[]
+  matches SideIncomeMatch[]
+
+  @@map("side_opportunities")
+}
+
+model SideOpportunitySkill {
+  id                String          @id @default(cuid())
+  sideOpportunityId String
+  sideOpportunity   SideOpportunity @relation(fields: [sideOpportunityId], references: [id], onDelete: Cascade)
+  skillId           String
+  skill             Skill           @relation(fields: [skillId], references: [id])
+  level             SkillLevel
+
+  @@unique([sideOpportunityId, skillId])
+  @@map("side_opportunity_skills")
+}
+
+model SideIncomeMatch {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sideOpportunityId String
+  sideOpportunity   SideOpportunity @relation(fields: [sideOpportunityId], references: [id])
+
+  fitScore          Int
+  breakdown         Json
+  reasons           String[]
+  missingSkillNames String[]
+  rank              Int
+
+  generatedAt DateTime @default(now())
+
+  @@unique([userId, sideOpportunityId])
+  @@index([userId])
+  @@map("side_income_matches")
+}
+
+// ---------------------------------------------------------------------------
+// Portfolio tracker
+// ---------------------------------------------------------------------------
+
+enum PortfolioStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model PortfolioProject {
+  id          String  @id @default(cuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  link        String?
+
+  careerId String?
+  career   CareerProfile? @relation(fields: [careerId], references: [id])
+
+  roadmapTaskId String?      @unique
+  roadmapTask   RoadmapTask? @relation(fields: [roadmapTaskId], references: [id])
+
+  status    PortfolioStatus @default(PLANNED)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([userId])
+  @@map("portfolio_projects")
+}
+
+// ---------------------------------------------------------------------------
+// AI career assistant
+// ---------------------------------------------------------------------------
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+model AiConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages AiMessage[]
+
+  @@index([userId])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String
+  createdAt      DateTime       @default(now())
+
+  @@map("ai_messages")
 }

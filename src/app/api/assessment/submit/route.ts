@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { computeTraitScores, TOTAL_QUESTIONS } from "@/lib/assessment/scoring";
+import { generateCareerMatches, generateSideIncomeMatches } from "@/lib/career-engine/generate";
 
 const submitSchema = z.object({ assessmentId: z.string().min(1) });
 
@@ -46,6 +47,14 @@ export async function POST(request: Request) {
       traitScores,
     },
   });
+
+  // Generate the career and side-income matches right away so they're
+  // ready the moment the user reaches their results — this is the "AI
+  // analyzes profile" step of the journey (docs/PRODUCT_STRATEGY.md §4).
+  await Promise.all([
+    generateCareerMatches(session.user.id),
+    generateSideIncomeMatches(session.user.id),
+  ]);
 
   return NextResponse.json({ ok: true });
 }

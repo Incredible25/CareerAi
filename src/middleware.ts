@@ -14,5 +14,10 @@ export const config = {
     "/onboarding/:path*",
     "/assessment/:path*",
     "/profile/:path*",
+    "/matches/:path*",
+    "/careers/:slug/plan",
+    "/side-income/:path*",
+    "/assistant/:path*",
+    "/portfolio/:path*",
   ],
 };
