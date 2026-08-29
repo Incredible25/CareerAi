@@ -1,16 +1,18 @@
 // 3Doors — schema.
 //
 // Phase 1 (identity, profile, education, the shared skills/interests
-// catalogs, the self-discovery assessment) plus Phase 2, the Career
-// Guidance Engine: the career and side-income knowledge bases, generated
-// matches, skill gaps, roadmaps, the AI assistant, and the portfolio
-// tracker (docs/PRODUCT_STRATEGY.md §6, §15, and the August 2026 scope
-// amendment).
+// catalogs, the self-discovery assessment), Phase 2/3 (the Career Guidance
+// Engine: career and side-income knowledge bases, generated matches,
+// skill gaps, roadmaps, the AI assistant, the portfolio tracker), and now
+// Phase 4, the Verified Opportunity Engine: a controlled, admin-curated
+// opportunity catalog with a verification workflow, deterministic
+// matching, saving, application tracking, and reporting.
 //
-// Deliberately absent: anything opportunity-engine related (jobs,
-// scholarships, internships, employer listings). That system is deferred
-// pending explicit approval — see the scope amendment — and nothing below
-// depends on it existing.
+// The opportunity catalog is never populated by scraping or AI generation
+// — every Opportunity traces to a Source a human admin created, and the
+// public-facing queries (feed, matching, dashboard) only ever read rows
+// where verificationStatus = VERIFIED and opportunityStatus = ACTIVE.
+// See docs/PRODUCT_STRATEGY.md for the full verification architecture.
 
 generator client {
   provider = "prisma-client-js"
@@ -33,6 +35,14 @@ enum AgeRange {
   OVER_30
 }
 
+// Phase 4: the first admin concept in the codebase. There is no self-serve
+// path to ADMIN — it's granted via prisma/promote-admin.ts, run directly
+// against the database by someone with deploy access, never through a UI.
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -44,6 +54,7 @@ model User {
   // Derived at registration from ageRange; gates minor-safeguarding
   // defaults across the app (docs/PRODUCT_STRATEGY.md §13).
   isMinor      Boolean  @default(false)
+  role         UserRole @default(USER)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -59,6 +70,12 @@ model User {
   sideIncomeMatches SideIncomeMatch[]
   portfolioProjects PortfolioProject[]
   aiConversations   AiConversation[]
+
+  opportunityMatches      OpportunityMatch[]
+  opportunityApplications OpportunityApplication[]
+  opportunityReports      OpportunityReport[]
+  createdOpportunities    Opportunity[]            @relation("OpportunityCreatedBy")
+  updatedOpportunities    Opportunity[]            @relation("OpportunityUpdatedBy")
 
   @@map("users")
 }
@@ -144,6 +161,7 @@ model Skill {
   careerSkills          CareerSkill[]
   sideOpportunitySkills SideOpportunitySkill[]
   skillGaps             SkillGap[]
+  opportunitySkills     OpportunitySkill[]
 
   @@map("skills")
 }
@@ -281,6 +299,7 @@ model CareerProfile {
   roadmaps          Roadmap[]
   portfolioProjects PortfolioProject[]
   sideOpportunities CareerSideOpportunity[]
+  opportunities     OpportunityCareer[]
 
   relatedCareers CareerProfile[] @relation("RelatedCareers")
   relatedTo      CareerProfile[] @relation("RelatedCareers")
@@ -537,4 +556,271 @@ model AiMessage {
   createdAt      DateTime       @default(now())
 
   @@map("ai_messages")
+}
+
+// =============================================================================
+// PHASE 4 — Verified Opportunity Engine
+//
+// Trust model, in one sentence: an Opportunity only ever reaches an
+// ordinary user if a human admin entered it, attached a real Source, and
+// separately, explicitly marked it VERIFIED — and it stops reaching users
+// the moment its deadline passes, checked at read time, not by a job that
+// could be stale. Nothing here is scraped or AI-generated.
+// =============================================================================
+
+enum SourceType {
+  OFFICIAL_ORGANIZATION
+  GOVERNMENT
+  UNIVERSITY
+  INTERNATIONAL_ORGANIZATION
+  PARTNER_ORGANIZATION
+  APPROVED_PLATFORM
+  OTHER
+}
+
+enum TrustLevel {
+  HIGH
+  MEDIUM
+  LOW
+  UNRATED
+}
+
+// Every Opportunity must reference one of these — "preserve original
+// source" (Module 3/15) enforced structurally, not by convention. A
+// source existing here is not itself a trust claim; TrustLevel is an
+// admin's ongoing judgment, re-examined at lastCheckedAt.
+model Source {
+  id            String     @id @default(cuid())
+  name          String
+  type          SourceType
+  url           String
+  trustLevel    TrustLevel @default(UNRATED)
+  lastCheckedAt DateTime?
+  active        Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  opportunities Opportunity[]
+
+  @@map("opportunity_sources")
+}
+
+enum OpportunityCategory {
+  JOB
+  INTERNSHIP
+  SCHOLARSHIP
+  FELLOWSHIP
+  GRANT
+  COMPETITION
+  VOLUNTEER
+  REMOTE_WORK
+  FREELANCE
+  TRAINING_PROGRAM
+  MENTORSHIP
+}
+
+enum RemoteStatus {
+  REMOTE
+  ON_SITE
+  HYBRID
+  UNSPECIFIED
+}
+
+enum ExperienceRequirement {
+  NONE
+  ENTRY_LEVEL
+  SOME_EXPERIENCE
+  EXPERIENCED
+  UNSPECIFIED
+}
+
+// Trustworthiness of the content. Orthogonal to OpportunityStatus below —
+// a VERIFIED opportunity can still lapse to EXPIRED without that ever
+// reopening the question of whether it was trustworthy content.
+enum VerificationStatus {
+  UNVERIFIED
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  REPORTED
+}
+
+// Lifecycle: is this currently a live, displayable opportunity.
+enum OpportunityStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  ARCHIVED
+}
+
+model Opportunity {
+  id           String              @id @default(cuid())
+  title        String
+  organization String
+  category     OpportunityCategory
+  description  String
+
+  location          String?
+  country           String?
+  remoteStatus      RemoteStatus @default(UNSPECIFIED)
+  // Empty = no country restriction. Non-empty = the user's Profile.country
+  // must appear here for the hard eligibility check (Module 5).
+  eligibleCountries String[]     @default([])
+
+  eligibilityText       String?
+  minEducationLevel     EducationLevel?
+  experienceRequirement ExperienceRequirement @default(UNSPECIFIED)
+
+  // Null deadline is a real, honest state — "deadline not specified,"
+  // never inferred (Module 13). Never defaulted to a fabricated date.
+  applicationDeadline DateTime?
+  applicationUrl      String
+  datePublished       DateTime?
+
+  sourceId  String
+  source    Source @relation(fields: [sourceId], references: [id])
+  // The specific page this record's facts were taken from — may be a
+  // deeper URL than Source.url (e.g. the exact program page, not the
+  // organization's homepage).
+  sourceUrl String
+
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  opportunityStatus  OpportunityStatus  @default(DRAFT)
+  lastVerifiedAt     DateTime?
+  // Admin's own note on why it's in its current verification state —
+  // shown only in the admin dashboard, never to end users.
+  verificationNote   String?
+
+  createdById String
+  createdBy   User    @relation("OpportunityCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("OpportunityUpdatedBy", fields: [updatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skills       OpportunitySkill[]
+  careers      OpportunityCareer[]
+  matches      OpportunityMatch[]
+  applications OpportunityApplication[]
+  reports      OpportunityReport[]
+
+  @@index([category])
+  @@index([verificationStatus, opportunityStatus])
+  @@map("opportunities")
+}
+
+model OpportunitySkill {
+  id            String      @id @default(cuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  skillId       String
+  skill         Skill       @relation(fields: [skillId], references: [id])
+  required      Boolean     @default(true)
+
+  @@unique([opportunityId, skillId])
+  @@map("opportunity_skills")
+}
+
+// Curated link to the career(s) this opportunity is relevant to — same
+// editorial pattern as CareerSideOpportunity, and what the "Career
+// Alignment" match factor (Module 6) reads.
+model OpportunityCareer {
+  id            String        @id @default(cuid())
+  opportunityId String
+  opportunity   Opportunity   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  careerId      String
+  career        CareerProfile @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@unique([opportunityId, careerId])
+  @@map("opportunity_careers")
+}
+
+model OpportunityMatch {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  matchScore       Int
+  // Decomposed sub-scores + categorical labels (Module 6) — same
+  // transparency pattern as CareerMatch.breakdown.
+  breakdown        Json
+  reasons          String[]
+  // Hard-requirement flags the user does not currently meet (e.g. "Requires
+  // a Bachelor's degree") — always shown, never used to silently hide the
+  // opportunity (Module 5: "flag appropriately").
+  eligibilityFlags String[]
+  engineVersion    String   @default("1.0.0")
+  rank             Int
+  generatedAt      DateTime @default(now())
+
+  @@unique([userId, opportunityId])
+  @@index([userId])
+  @@map("opportunity_matches")
+}
+
+enum ApplicationStatus {
+  SAVED
+  PLANNING_TO_APPLY
+  APPLIED
+  INTERVIEW_SELECTION
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+// "Save" (Module 8) is just creating one of these with status=SAVED.
+// appliedAt is only ever set by the user's own action — 3Doors never
+// claims an application happened (Module 9, Module 14).
+model OpportunityApplication {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  status    ApplicationStatus @default(SAVED)
+  notes     String?
+  appliedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, opportunityId])
+  @@index([userId])
+  @@map("opportunity_applications")
+}
+
+enum ReportReason {
+  SUSPICIOUS_OPPORTUNITY
+  BROKEN_LINK
+  INCORRECT_INFORMATION
+  EXPIRED
+  MISLEADING_REQUIREMENTS
+  SUSPICIOUS_ORGANIZATION
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+}
+
+model OpportunityReport {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  reason ReportReason
+  note   String?
+  status ReportStatus @default(OPEN)
+
+  createdAt DateTime @default(now())
+
+  @@index([opportunityId])
+  @@map("opportunity_reports")
 }

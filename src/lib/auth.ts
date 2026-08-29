@@ -44,6 +44,7 @@ export const authOptions: AuthOptions = {
           id: user.id,
           name: user.name,
           email: user.email,
+          role: user.role,
         };
       },
     }),
@@ -52,12 +53,19 @@ export const authOptions: AuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        // Convenience only — for UI display (e.g. showing an admin nav
+        // link). Never the basis for authorizing an admin action: every
+        // admin route re-checks role against the database via
+        // requireAdmin() (src/lib/session.ts), since a role revoked after
+        // sign-in wouldn't be reflected here until the token refreshes.
+        session.user.role = token.role as "USER" | "ADMIN";
       }
       return session;
     },

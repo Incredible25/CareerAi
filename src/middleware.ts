@@ -19,5 +19,8 @@ export const config = {
     "/side-income/:path*",
     "/assistant/:path*",
     "/portfolio/:path*",
+    "/opportunities/:path*",
+    "/applications/:path*",
+    "/admin/:path*",
   ],
 };

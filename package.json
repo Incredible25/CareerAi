@@ -15,6 +15,7 @@
     "prisma:seed-side-income": "tsx prisma/seed-side-income.ts",
     "prisma:seed-career-links": "tsx prisma/seed-career-links.ts",
     "prisma:seed-all": "npm run prisma:seed && npm run prisma:seed-careers && npm run prisma:seed-side-income && npm run prisma:seed-career-links",
+    "admin:promote": "tsx prisma/promote-admin.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
