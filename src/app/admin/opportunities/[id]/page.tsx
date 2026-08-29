@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { OpportunityForm } from "@/components/admin/opportunity-form";
+import { VerificationActions } from "@/components/admin/verification-actions";
 import { VERIFICATION_LABELS, OPPORTUNITY_STATUS_LABELS, REPORT_REASON_LABELS } from "@/lib/opportunities/constants";
 
 export const metadata: Metadata = { title: "Edit opportunity · Admin" };
@@ -37,9 +38,21 @@ export default async function EditOpportunityPage({ params }: { params: { id: st
         </div>
       </div>
       <p className="mt-1 text-xs text-ink-faint">
-        Verification status changes only through dedicated review actions — coming in the next
-        module. This form edits content only.
+        Verification status changes only through the dedicated actions below. The form further
+        down edits content only and can never touch it.
       </p>
+
+      <div className="mt-6">
+        <VerificationActions
+          opportunityId={opportunity.id}
+          verificationStatus={opportunity.verificationStatus}
+          opportunityStatus={opportunity.opportunityStatus}
+        />
+      </div>
+
+      {opportunity.verificationNote && (
+        <p className="mt-2 text-xs text-ink-faint">Last review note: &ldquo;{opportunity.verificationNote}&rdquo;</p>
+      )}
 
       {opportunity.reports.length > 0 && (
         <div className="card mt-6 border-orange-400 bg-orange-50">
@@ -55,6 +68,9 @@ export default async function EditOpportunityPage({ params }: { params: { id: st
               </li>
             ))}
           </ul>
+          <Link href="/admin/reports" className="mt-2 inline-block text-xs font-medium text-orange-600 hover:underline">
+            Review in the reports queue →
+          </Link>
         </div>
       )}
 

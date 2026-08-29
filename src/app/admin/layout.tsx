@@ -7,6 +7,7 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 const ADMIN_NAV = [
   { href: "/admin/opportunities", label: "Opportunities" },
   { href: "/admin/sources", label: "Sources" },
+  { href: "/admin/reports", label: "Reports" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
