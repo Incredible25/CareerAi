@@ -280,11 +280,28 @@ model CareerProfile {
   skillGaps         SkillGap[]
   roadmaps          Roadmap[]
   portfolioProjects PortfolioProject[]
+  sideOpportunities CareerSideOpportunity[]
 
   relatedCareers CareerProfile[] @relation("RelatedCareers")
   relatedTo      CareerProfile[] @relation("RelatedCareers")
 
   @@map("career_profiles")
+}
+
+// Curated cross-link between a career and side-income paths worth
+// exploring while building toward it (Phase 2, Module 1/6) — distinct
+// from SideIncomeMatch, which is a generated, skill-only score decoupled
+// from any specific career. This is admin-curated editorial judgment
+// ("these two are related"), not a computed result.
+model CareerSideOpportunity {
+  id                String          @id @default(cuid())
+  careerId          String
+  career            CareerProfile   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  sideOpportunityId String
+  sideOpportunity   SideOpportunity @relation(fields: [sideOpportunityId], references: [id], onDelete: Cascade)
+
+  @@unique([careerId, sideOpportunityId])
+  @@map("career_side_opportunities")
 }
 
 model CareerSkill {
@@ -413,6 +430,7 @@ model SideOpportunity {
 
   skills  SideOpportunitySkill[]
   matches SideIncomeMatch[]
+  careers CareerSideOpportunity[]
 
   @@map("side_opportunities")
 }

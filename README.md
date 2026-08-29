@@ -18,7 +18,7 @@ Requirements: Node 20+, a PostgreSQL database.
 npm install
 cp .env.example .env   # fill in DATABASE_URL and NEXTAUTH_SECRET
 npx prisma migrate dev
-npm run prisma:seed    # loads the starter skills/interests catalog
+npm run prisma:seed-all # loads skills/interests, careers, side-income, and career<->side-income links
 npm run dev
 ```
 
@@ -33,7 +33,7 @@ Open http://localhost:3000.
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript project check |
 | `npm run prisma:migrate` | Create/apply a local migration |
-| `npm run prisma:seed` | Seed the skills/interests catalog |
+| `npm run prisma:seed-all` | Seed skills/interests, careers, side-income paths, and their cross-links, in order |
 
 ## Architecture at a glance
 
