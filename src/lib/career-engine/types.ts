@@ -11,12 +11,18 @@ export type UserProfileInput = {
   traitScores: Partial<Record<TraitKey, number>>;
   preferredEnvironment: WorkEnvironment | null;
   availableHoursPerWeek: number | null;
+  // Free-text goal from onboarding (Profile.careerGoals). Used only for
+  // deterministic keyword overlap (Phase 2, Module 3) — never sent to an
+  // LLM to "interpret" as part of matching.
+  careerGoals: string | null;
 };
 
 export type CareerSkillRequirement = { skillId: string; name: string; level: SkillLevel };
 
 export type CareerForScoring = {
   id: string;
+  name: string;
+  industry: string;
   relevantInterests: string[];
   relevantSubjects: string[];
   traitWeights: Partial<Record<TraitKey, number>>;
@@ -35,6 +41,7 @@ export type FitBreakdown = {
   subjectMatch: number;
   strengthMatch: number;
   workPreferenceMatch: number;
+  goalMatch: number;
   learningFeasibility: number;
 };
 

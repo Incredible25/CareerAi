@@ -31,6 +31,7 @@ export async function buildUserProfileInput(userId: string): Promise<UserProfile
     >,
     preferredEnvironment: profile?.preferredEnvironment ?? null,
     availableHoursPerWeek: profile?.availableHoursPerWeek ?? null,
+    careerGoals: profile?.careerGoals ?? null,
   };
 }
 
@@ -62,6 +63,8 @@ export async function generateCareerMatches(userId: string): Promise<string | nu
   const scored = careers.map((career) => {
     const forScoring: CareerForScoring = {
       id: career.id,
+      name: career.name,
+      industry: career.industry,
       relevantInterests: career.relevantInterests,
       relevantSubjects: career.relevantSubjects,
       traitWeights: career.traitWeights as Partial<Record<TraitKey, number>>,

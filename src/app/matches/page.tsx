@@ -7,6 +7,7 @@ import { generateCareerMatches, getLatestCareerMatches } from "@/lib/career-engi
 import { prisma } from "@/lib/prisma";
 import { AppHeader } from "@/components/app-header";
 import { RefreshMatchesButton } from "@/components/matches/refresh-matches-button";
+import { FitBreakdownDetails } from "@/components/matches/fit-breakdown";
 
 export const metadata: Metadata = { title: "Your career matches" };
 
@@ -84,6 +85,7 @@ function MatchCard({
     id: string;
     fitScore: number;
     reasons: string[];
+    breakdown: unknown;
     career: { slug: string; name: string; industry: string };
   };
   rank: number;
@@ -109,6 +111,8 @@ function MatchCard({
           ))}
         </ul>
       )}
+
+      <FitBreakdownDetails breakdown={match.breakdown} />
 
       <div className="mt-4 flex flex-wrap gap-3">
         <Link href={`/careers/${match.career.slug}`} className="btn-secondary !px-4 !py-2 text-sm">

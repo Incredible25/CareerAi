@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/session";
 import { AppHeader } from "@/components/app-header";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { FitBreakdownDetails } from "@/components/matches/fit-breakdown";
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const career = await prisma.careerProfile.findUnique({ where: { slug: params.slug } });
@@ -77,6 +78,7 @@ export default async function CareerProfilePage({ params }: { params: { slug: st
                 ))}
               </ul>
             )}
+            <FitBreakdownDetails breakdown={match.breakdown} />
             <Link href={`/careers/${career.slug}/plan`} className="btn-primary mt-4 inline-flex !px-4 !py-2 text-sm">
               See my skill gap and roadmap
             </Link>

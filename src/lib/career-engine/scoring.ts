@@ -10,9 +10,14 @@
  * to the user, not separately generated prose that could drift from the
  * number next to it. See §7 of the strategy doc for the full reasoning.
  *
- * Weights are the MVP v1 formula: the original 8-factor design's Goal
- * Match and Opportunity Relevance factors are dropped (not honestly
- * computable yet) and the remaining six are renormalized to 100%.
+ * Weights (v1.1, Phase 2 Module 3): the original 8-factor design's
+ * Opportunity Relevance factor is still dropped — it needs the deferred
+ * opportunity engine and there's no honest way to fake it. Goal Match is
+ * back, computed as deterministic keyword overlap between the user's
+ * free-text career goal and the career's own name/industry/interest tags
+ * — no NLP, no LLM, just set intersection. It's a blunt signal (it won't
+ * catch synonyms or paraphrase) but it's honest: it only ever reflects
+ * words the user actually typed, never an inferred intent.
  */
 import { meetsLevel, SKILL_LEVEL_ORDER } from "@/lib/career-engine/skill-level";
 import { TRAIT_LABELS } from "@/lib/assessment/scoring";
@@ -34,16 +39,37 @@ import type {
  * (Phase 2, Module 2) so results stay auditable: which rows were computed
  * under which rules.
  */
-export const CAREER_ENGINE_VERSION = "1.0.0";
+export const CAREER_ENGINE_VERSION = "1.1.0";
 
 const WEIGHTS = {
-  interestMatch: 0.25,
-  skillMatch: 0.25,
-  subjectMatch: 0.15,
-  strengthMatch: 0.15,
+  interestMatch: 0.22,
+  skillMatch: 0.22,
+  subjectMatch: 0.14,
+  strengthMatch: 0.14,
   workPreferenceMatch: 0.1,
-  learningFeasibility: 0.1,
+  goalMatch: 0.1,
+  learningFeasibility: 0.08,
 } as const;
+
+// Filtered out before comparing goal text to career vocabulary — common
+// filler plus words so generic ("work", "career", "job") that they'd
+// spuriously overlap with almost anything, producing a meaningless-high
+// score. Small and deliberately conservative: better to under-match than
+// to fabricate a connection that isn't really there.
+const GOAL_MATCH_STOPWORDS = new Set([
+  "a", "an", "the", "and", "or", "to", "in", "on", "of", "for", "with",
+  "my", "i", "me", "want", "would", "like", "love", "hope", "hoping",
+  "work", "working", "career", "job", "jobs", "field", "industry",
+  "something", "someday", "eventually", "maybe", "not", "sure", "yet",
+  "get", "into", "be", "am", "is", "are", "that", "this", "it", "at",
+]);
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 2 && !GOAL_MATCH_STOPWORDS.has(token));
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -119,6 +145,20 @@ function scoreStrengthMatch(profile: UserProfileInput, career: CareerForScoring)
   return { score: weightTotal > 0 ? round(weightedSum / weightTotal) : 50, topTraits };
 }
 
+function scoreGoalMatch(profile: UserProfileInput, career: CareerForScoring) {
+  const goalTokens = new Set(tokenize(profile.careerGoals ?? ""));
+  if (goalTokens.size === 0) return { score: 50, matched: [] as string[] };
+
+  const careerVocabulary = new Set(
+    tokenize([career.name, career.industry, ...career.relevantInterests].join(" "))
+  );
+  if (careerVocabulary.size === 0) return { score: 50, matched: [] as string[] };
+
+  const matched = [...goalTokens].filter((token) => careerVocabulary.has(token));
+  const score = clamp(round((matched.length / goalTokens.size) * 100), 0, 100);
+  return { score, matched };
+}
+
 function scoreWorkPreferenceMatch(profile: UserProfileInput, career: CareerForScoring) {
   if (!profile.preferredEnvironment || profile.preferredEnvironment === "NO_PREFERENCE") return 100;
   if (career.environments.length === 0) return 50;
@@ -139,6 +179,7 @@ export function computeCareerFit(profile: UserProfileInput, career: CareerForSco
   const skill = scoreSkillMatch(profile, career.careerSkills);
   const strength = scoreStrengthMatch(profile, career);
   const workPreference = scoreWorkPreferenceMatch(profile, career);
+  const goal = scoreGoalMatch(profile, career);
   const feasibility = scoreLearningFeasibility(profile, skill.gapCount);
 
   const breakdown: FitBreakdown = {
@@ -147,6 +188,7 @@ export function computeCareerFit(profile: UserProfileInput, career: CareerForSco
     subjectMatch: subject.score,
     strengthMatch: strength.score,
     workPreferenceMatch: workPreference,
+    goalMatch: goal.score,
     learningFeasibility: feasibility,
   };
 
@@ -156,6 +198,7 @@ export function computeCareerFit(profile: UserProfileInput, career: CareerForSco
       breakdown.subjectMatch * WEIGHTS.subjectMatch +
       breakdown.strengthMatch * WEIGHTS.strengthMatch +
       breakdown.workPreferenceMatch * WEIGHTS.workPreferenceMatch +
+      breakdown.goalMatch * WEIGHTS.goalMatch +
       breakdown.learningFeasibility * WEIGHTS.learningFeasibility
   );
 
@@ -180,6 +223,12 @@ export function computeCareerFit(profile: UserProfileInput, career: CareerForSco
   if (workPreference === 100 && profile.preferredEnvironment && profile.preferredEnvironment !== "NO_PREFERENCE") {
     const label = profile.preferredEnvironment === "REMOTE" ? "remote" : profile.preferredEnvironment === "IN_PERSON" ? "in-person" : "hybrid";
     candidates.push({ weight: WEIGHTS.workPreferenceMatch * 100, text: `Fits your preference for ${label} work` });
+  }
+  if (goal.matched.length > 0) {
+    candidates.push({
+      weight: WEIGHTS.goalMatch * goal.score,
+      text: `Connects to what you said you want: "${goal.matched.slice(0, 2).join(", ")}"`,
+    });
   }
 
   const reasons = candidates
