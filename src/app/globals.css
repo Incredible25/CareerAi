@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-sand-50 text-ink font-body antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+    text-wrap: balance;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg2 bg-green-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg2 border border-sand-300 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:border-green-500 hover:text-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500;
+  }
+  .card {
+    @apply rounded-lg2 border border-sand-200 bg-white p-6 shadow-sm;
+  }
+  .field-label {
+    @apply block text-sm font-medium text-ink;
+  }
+  .field-input {
+    @apply mt-1.5 w-full rounded-lg2 border border-sand-300 bg-white px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500;
+  }
+  .field-hint {
+    @apply mt-1.5 text-xs text-ink-faint;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-sand-300 bg-sand-50 px-3 py-1 font-mono text-[11px] uppercase tracking-wide text-ink-soft;
+  }
+  .badge-ai {
+    @apply border-orange-400 bg-orange-50 text-orange-600;
+  }
+}

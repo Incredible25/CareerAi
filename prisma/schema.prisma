@@ -1,0 +1,213 @@
+// 3Doors — Phase 1 schema.
+//
+// Scope is deliberately limited to what Phase 1 (Foundation) needs:
+// identity, profile, education, the shared skills/interests catalogs, and
+// the self-discovery assessment. Career knowledge base, recommendations,
+// roadmaps, side-income, and opportunities are Phase 2+ (see
+// docs/PRODUCT_STRATEGY.md §6, §15) and are intentionally not modeled yet
+// so this migration history doesn't carry tables nothing reads from.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & profile
+// ---------------------------------------------------------------------------
+
+enum AgeRange {
+  UNDER_16
+  AGE_16_18
+  AGE_19_24
+  AGE_25_30
+  OVER_30
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  ageRange     AgeRange
+  country      String
+  city         String?
+  // Derived at registration from ageRange; gates minor-safeguarding
+  // defaults across the app (docs/PRODUCT_STRATEGY.md §13).
+  isMinor      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile       Profile?
+  education     Education[]
+  userSkills    UserSkill[]
+  userInterests UserInterest[]
+  assessments   Assessment[]
+
+  @@map("users")
+}
+
+enum EducationLevel {
+  SECONDARY
+  UNIVERSITY
+  GRADUATE
+  OTHER
+}
+
+enum WorkEnvironment {
+  REMOTE
+  IN_PERSON
+  HYBRID
+  NO_PREFERENCE
+}
+
+enum InternetAccess {
+  RELIABLE_DAILY
+  INTERMITTENT
+  LIMITED
+}
+
+// The "soft" data the recommendation engine (Phase 2) will read: goals,
+// preferences, and the access/resource constraints that make a roadmap
+// realistic rather than generic.
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  careerGoals           String?
+  incomeGoal             String?
+  preferredEnvironment   WorkEnvironment?
+  availableHoursPerWeek  Int?
+  hasLaptop              Boolean?
+  hasSmartphone          Boolean?
+  internetAccess         InternetAccess?
+  languages              String[] @default([])
+  linkedinUrl            String?
+  portfolioUrl           String?
+
+  // Progressive onboarding position — which step the user last completed,
+  // so a return visit resumes rather than restarts
+  // (docs/PRODUCT_STRATEGY.md §4).
+  onboardingStep        Int       @default(0)
+  onboardingCompletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model Education {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level       EducationLevel
+  institution String?
+  program     String?
+  subjects    String[] @default([])
+  strengths   String[] @default([])
+  isCurrent   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@map("education")
+}
+
+// ---------------------------------------------------------------------------
+// Shared skills & interests catalogs (admin-curated, seeded — see prisma/seed.ts)
+// ---------------------------------------------------------------------------
+
+model Skill {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  category   String?
+  userSkills UserSkill[]
+
+  @@map("skills")
+}
+
+model Interest {
+  id            String         @id @default(cuid())
+  name          String         @unique
+  category      String?
+  userInterests UserInterest[]
+
+  @@map("interests")
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+model UserSkill {
+  id      String     @id @default(cuid())
+  userId  String
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillId String
+  skill   Skill      @relation(fields: [skillId], references: [id])
+  level   SkillLevel
+
+  @@unique([userId, skillId])
+  @@map("user_skills")
+}
+
+model UserInterest {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interestId String
+  interest   Interest @relation(fields: [interestId], references: [id])
+
+  @@unique([userId, interestId])
+  @@map("user_interests")
+}
+
+// ---------------------------------------------------------------------------
+// Self-discovery assessment
+// ---------------------------------------------------------------------------
+
+enum AssessmentStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Assessment {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      AssessmentStatus   @default(IN_PROGRESS)
+  // Structured per-trait scores computed on submit (see
+  // src/lib/assessment/scoring.ts). Consumed by the Phase 2 recommendation
+  // engine — this is the "structured user profile" the assessment
+  // (docs/PRODUCT_STRATEGY.md §5) is required to produce.
+  traitScores Json?
+  startedAt   DateTime           @default(now())
+  completedAt DateTime?
+
+  answers AssessmentAnswer[]
+
+  @@index([userId])
+  @@map("assessments")
+}
+
+model AssessmentAnswer {
+  id           String     @id @default(cuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questionId   String
+  trait        String
+  // 1-5 Likert value
+  value        Int
+  answeredAt   DateTime   @default(now())
+
+  @@unique([assessmentId, questionId])
+  @@map("assessment_answers")
+}
