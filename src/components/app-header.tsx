@@ -10,7 +10,7 @@ const NAV_LINKS = [
   { href: "/assistant", label: "Assistant" },
 ];
 
-export function AppHeader({ name }: { name: string }) {
+export function AppHeader({ name, isAdmin }: { name: string; isAdmin?: boolean }) {
   return (
     <header className="border-b border-sand-200 bg-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-4 sm:px-10">
@@ -25,6 +25,11 @@ export function AppHeader({ name }: { name: string }) {
           </nav>
         </div>
         <div className="flex items-center gap-4">
+          {isAdmin && (
+            <Link href="/admin/opportunities" className="badge border-orange-400 text-orange-600 hover:bg-orange-50">
+              Admin
+            </Link>
+          )}
           <span className="hidden text-sm text-ink-soft sm:inline">{name}</span>
           <SignOutButton />
         </div>

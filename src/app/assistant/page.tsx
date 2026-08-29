@@ -22,7 +22,7 @@ export default async function AssistantPage() {
 
   return (
     <div className="flex h-dvh flex-col bg-sand-50">
-      <AppHeader name={user.name} />
+      <AppHeader name={user.name} isAdmin={user.role === "ADMIN"} />
       <AssistantChat
         conversationId={conversation?.id ?? null}
         initialMessages={

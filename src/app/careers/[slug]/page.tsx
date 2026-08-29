@@ -47,7 +47,7 @@ export default async function CareerProfilePage({ params }: { params: { slug: st
 
   return (
     <div className="min-h-dvh bg-sand-50">
-      {user ? <AppHeader name={user.name} /> : <SiteHeader />}
+      {user ? <AppHeader name={user.name} isAdmin={user.role === "ADMIN"} /> : <SiteHeader />}
 
       <main className="mx-auto max-w-3xl px-6 pb-24 pt-10 sm:px-10">
         <span className="badge">{career.industry}</span>

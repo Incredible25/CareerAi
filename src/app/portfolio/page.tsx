@@ -26,7 +26,7 @@ export default async function PortfolioPage() {
 
   return (
     <div className="min-h-dvh bg-sand-50 pb-24">
-      <AppHeader name={user.name} />
+      <AppHeader name={user.name} isAdmin={user.role === "ADMIN"} />
 
       <main className="mx-auto max-w-2xl px-6 pt-10 sm:px-10">
         <h1 className="text-2xl font-bold text-ink sm:text-3xl">Your portfolio</h1>

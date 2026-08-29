@@ -17,7 +17,7 @@ export default async function SideIncomePage() {
 
   return (
     <div className="min-h-dvh bg-sand-50 pb-24">
-      <AppHeader name={user.name} />
+      <AppHeader name={user.name} isAdmin={user.role === "ADMIN"} />
 
       <main className="mx-auto max-w-3xl px-6 pt-10 sm:px-10">
         <span className="badge badge-ai">Potential income paths — not guaranteed earnings</span>

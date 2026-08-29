@@ -56,7 +56,7 @@ export default async function CareerPlanPage({ params }: { params: { slug: strin
 
   return (
     <div className="min-h-dvh bg-sand-50 pb-24">
-      <AppHeader name={user.name} />
+      <AppHeader name={user.name} isAdmin={user.role === "ADMIN"} />
 
       <main className="mx-auto max-w-3xl px-6 pt-10 sm:px-10">
         <Link href="/matches" className="text-sm font-medium text-ink-soft hover:text-ink">

@@ -70,7 +70,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-dvh bg-sand-50 pb-24">
-      <AppHeader name={user.name} />
+      <AppHeader name={user.name} isAdmin={user.role === "ADMIN"} />
 
       <main className="mx-auto max-w-5xl px-6 pt-10 sm:px-10">
         <h1 className="text-2xl font-bold text-ink sm:text-3xl">Welcome, {firstName}</h1>

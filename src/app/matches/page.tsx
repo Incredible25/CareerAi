@@ -35,7 +35,7 @@ export default async function MatchesPage() {
 
   return (
     <div className="min-h-dvh bg-sand-50 pb-24">
-      <AppHeader name={user.name} />
+      <AppHeader name={user.name} isAdmin={user.role === "ADMIN"} />
 
       <main className="mx-auto max-w-3xl px-6 pt-10 sm:px-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
