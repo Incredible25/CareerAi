@@ -27,6 +27,15 @@ import type {
   UserProfileInput,
 } from "@/lib/career-engine/types";
 
+/**
+ * Bump this whenever the scoring formula itself changes (weights, factors
+ * added/removed, the underlying math) — never for catalog content changes
+ * like new careers. Stored on every CareerMatch/SideIncomeMatch row
+ * (Phase 2, Module 2) so results stay auditable: which rows were computed
+ * under which rules.
+ */
+export const CAREER_ENGINE_VERSION = "1.0.0";
+
 const WEIGHTS = {
   interestMatch: 0.25,
   skillMatch: 0.25,

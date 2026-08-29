@@ -337,6 +337,12 @@ model CareerMatch {
   reasons   String[]
   rank      Int
 
+  // Which version of the scoring formula produced this row (Phase 2,
+  // Module 2 — src/lib/career-engine/scoring.ts CAREER_ENGINE_VERSION).
+  // Lets a future formula change be audited: which matches were computed
+  // under which rules, without guessing from generatedAt alone.
+  engineVersion String @default("1.0.0")
+
   generatedAt DateTime @default(now())
 
   @@unique([userId, careerId, assessmentId])
@@ -459,6 +465,7 @@ model SideIncomeMatch {
   reasons           String[]
   missingSkillNames String[]
   rank              Int
+  engineVersion     String   @default("1.0.0")
 
   generatedAt DateTime @default(now())
 

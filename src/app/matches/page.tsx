@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { isOnboardingComplete } from "@/lib/onboarding";
 import { generateCareerMatches, getLatestCareerMatches } from "@/lib/career-engine/generate";
+import { prisma } from "@/lib/prisma";
 import { AppHeader } from "@/components/app-header";
+import { RefreshMatchesButton } from "@/components/matches/refresh-matches-button";
 
 export const metadata: Metadata = { title: "Your career matches" };
 
@@ -20,6 +22,13 @@ export default async function MatchesPage() {
     matches = await getLatestCareerMatches(user.id);
   }
 
+  const catalogSize = await prisma.careerProfile.count();
+  const lastGenerated = matches.reduce(
+    (latest, m) => (m.generatedAt > latest ? m.generatedAt : latest),
+    matches[0]?.generatedAt ?? new Date()
+  );
+  const isStaleAgainstCatalog = matches.length < catalogSize;
+
   const topFive = matches.slice(0, 5);
   const rest = matches.slice(5);
 
@@ -28,11 +37,19 @@ export default async function MatchesPage() {
       <AppHeader name={user.name} />
 
       <main className="mx-auto max-w-3xl px-6 pt-10 sm:px-10">
-        <span className="badge badge-ai">3Doors Fit Score — AI-assisted guidance, not a guarantee</span>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <span className="badge badge-ai">3Doors Fit Score — AI-assisted guidance, not a guarantee</span>
+          <RefreshMatchesButton />
+        </div>
         <h1 className="mt-3 text-2xl font-bold text-ink sm:text-3xl">Your career matches</h1>
         <p className="mt-2 max-w-xl text-sm text-ink-soft">
-          Based on your self-discovery assessment and profile, ranked by fit — not a single
-          verdict. Explore any of them, and take a closer look at the ones that feel right.
+          Based on your self-discovery assessment and profile, compared against all {catalogSize}{" "}
+          careers in our catalog and ranked by fit — not a single verdict. Explore any of them, and
+          take a closer look at the ones that feel right.
+        </p>
+        <p className="mt-1 text-xs text-ink-faint">
+          Last calculated {lastGenerated.toLocaleDateString()}.
+          {isStaleAgainstCatalog && " Our catalog has grown since — recalculate to include everything."}
         </p>
 
         <div className="mt-8 space-y-4">

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { computeCareerFit, computeSideIncomeFit } from "@/lib/career-engine/scoring";
+import { CAREER_ENGINE_VERSION, computeCareerFit, computeSideIncomeFit } from "@/lib/career-engine/scoring";
 import type {
   CareerForScoring,
   SideOpportunityForScoring,
@@ -38,8 +38,14 @@ export async function buildUserProfileInput(userId: string): Promise<UserProfile
  * Scores every career in the catalog against the user's latest completed
  * assessment and persists the results. Returns null if the user hasn't
  * completed an assessment yet — there is nothing to score against.
- * Recomputed (not cached) on every call: with ~24 careers this is cheap
- * pure computation, so matches always reflect the user's current skills.
+ *
+ * This function itself is a full, uncached recompute every time it's
+ * called — cheap pure computation over ~32 careers. What's cached is the
+ * *caller's decision* to invoke it: the /matches page only calls this
+ * when no matches exist yet (avoids recomputing on every page view), and
+ * POST /api/matches/refresh (Phase 2, Module 2) calls it unconditionally
+ * so a user can force a recompute — e.g. after the catalog itself grows,
+ * as it just did in Module 1.
  */
 export async function generateCareerMatches(userId: string): Promise<string | null> {
   const assessment = await prisma.assessment.findFirst({
@@ -77,7 +83,13 @@ export async function generateCareerMatches(userId: string): Promise<string | nu
         where: {
           userId_careerId_assessmentId: { userId, careerId: career.id, assessmentId: assessment.id },
         },
-        update: { fitScore: result.fitScore, breakdown: result.breakdown, reasons: result.reasons, rank: index + 1 },
+        update: {
+          fitScore: result.fitScore,
+          breakdown: result.breakdown,
+          reasons: result.reasons,
+          rank: index + 1,
+          engineVersion: CAREER_ENGINE_VERSION,
+        },
         create: {
           userId,
           careerId: career.id,
@@ -86,6 +98,7 @@ export async function generateCareerMatches(userId: string): Promise<string | nu
           breakdown: result.breakdown,
           reasons: result.reasons,
           rank: index + 1,
+          engineVersion: CAREER_ENGINE_VERSION,
         },
       })
     )
@@ -139,6 +152,7 @@ export async function generateSideIncomeMatches(userId: string): Promise<void> {
           reasons: result.reasons,
           missingSkillNames: result.missingSkillNames,
           rank: index + 1,
+          engineVersion: CAREER_ENGINE_VERSION,
         },
         create: {
           userId,
@@ -148,6 +162,7 @@ export async function generateSideIncomeMatches(userId: string): Promise<void> {
           reasons: result.reasons,
           missingSkillNames: result.missingSkillNames,
           rank: index + 1,
+          engineVersion: CAREER_ENGINE_VERSION,
         },
       })
     )
