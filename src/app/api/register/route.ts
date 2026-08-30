@@ -2,10 +2,19 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema, MINOR_AGE_RANGES } from "@/lib/validation/auth";
+import { getClientIp, isRateLimited } from "@/lib/rate-limit";
 
 const BCRYPT_ROUNDS = 12;
 
 export async function POST(request: Request) {
+  // Phase 5, Module 6: unauthenticated route, so keyed on IP rather than
+  // userId — 8 signups per 15 minutes per IP is generous for a real
+  // person (one account, maybe a sibling's) while blunting scripted
+  // signup abuse.
+  if (isRateLimited(`register:${getClientIp(request)}`, 8, 15 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many attempts. Please try again in a few minutes." }, { status: 429 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = registerSchema.safeParse(body);
 

@@ -51,8 +51,12 @@ model User {
   ageRange     AgeRange
   country      String
   city         String?
-  // Derived at registration from ageRange; gates minor-safeguarding
-  // defaults across the app (docs/PRODUCT_STRATEGY.md §13).
+  // Derived at registration from ageRange (docs/PRODUCT_STRATEGY.md §13
+  // names this as the intended minor-safeguarding gate). Phase 5 Module 6
+  // audit: as of this comment, nothing in the app actually reads this
+  // field — it does not currently gate any behavior. Flagged for the
+  // beta-readiness review rather than silently left implying a live
+  // safeguard; do not remove without deciding what should read it.
   isMinor      Boolean  @default(false)
   role         UserRole @default(USER)
   createdAt    DateTime @default(now())

@@ -2,6 +2,7 @@ import type { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { isRateLimited } from "@/lib/rate-limit";
 
 /**
  * Credentials-based auth via NextAuth: NextAuth owns session cookie
@@ -28,10 +29,18 @@ export const authOptions: AuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
+        const email = credentials.email.toLowerCase().trim();
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase().trim() },
-        });
+        // Phase 5, Module 6: keyed on the submitted email, not IP — this
+        // is what actually stops someone brute-forcing one known
+        // account's password, which is the real threat model for login
+        // (as opposed to registration's broad signup-abuse concern).
+        // Rate-limited attempts fail the exact same way as a wrong
+        // password (return null) so this never becomes a distinct,
+        // enumerable signal.
+        if (isRateLimited(`login:${email}`, 10, 15 * 60 * 1000)) return null;
+
+        const user = await prisma.user.findUnique({ where: { email } });
         if (!user) return null;
 
         const passwordMatches = await bcrypt.compare(

@@ -12,6 +12,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid status." }, { status: 400 });
 
+  // Phase 5, Module 6: every other [id] route in the app checks existence
+  // before mutating (see applications/[id], portfolio/[id]) — this one had
+  // been skipping it, which meant a bad id fell through to an uncaught
+  // Prisma P2025 instead of a clean 404.
+  const existing = await prisma.opportunityReport.findUnique({ where: { id: params.id } });
+  if (!existing) return NextResponse.json({ error: "Report not found." }, { status: 404 });
+
   const report = await prisma.opportunityReport.update({
     where: { id: params.id },
     data: { status: parsed.data.status },
