@@ -35,4 +35,7 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run test
+      - run: npm run prisma:seed-all
+      - run: npm run eval:recommendations
       - run: npm run build
