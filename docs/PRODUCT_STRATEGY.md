@@ -4,11 +4,11 @@
 
 Prepared as the CTO founding brief for 3Doors — an AI-powered career discovery, planning, and opportunity navigation platform for students, graduates, and young professionals in Africa, starting in Cameroon.
 
-Status: **In active implementation.** Foundation (auth, profile, assessment), the Career Guidance Engine (recommendations, skill gaps, roadmaps, side-income, AI assistant, portfolio), and the Verified Opportunity Engine (in progress) are built and tested module by module against a live database, each committed and pushed as it lands. This document remains the living architecture record — it is updated alongside the code, not just written once up front.
+Status: **In active implementation.** Foundation (auth, profile, assessment), the Career Guidance Engine (recommendations, skill gaps, roadmaps, side-income, AI assistant, portfolio), and the Verified Opportunity Engine (dev-order 1–17 complete — schema through matching, feed, save/tracker, reporting, AI application assistant, dashboard integration, and a final testing/security/data-quality audit) are built and tested module by module against a live database, each committed and pushed as it lands. Phase 2 modules 4–10 (deepening passes over the career engine) remain pending. This document remains the living architecture record — it is updated alongside the code, not just written once up front.
 
 > **Scope amendment — August 2026.** Priorities were re-sequenced after Phase 1 shipped: the **Opportunity Engine is deferred and requires explicit approval before any work starts on it** — no scraping, crawling, or automated collection of jobs/scholarships/internships/grants in the meantime, and no opportunity-matching UI presented as functional. The MVP's job is to make the **career guidance engine** (assessment → recommendation → skill gap → roadmap → side-income → AI assistant → progress → portfolio) genuinely useful on its own first. This changes the priority order in §15/§19 below; §2, §6, §9, and §31 are otherwise unchanged in substance. See the audit note in the Phase 2 commit for confirmation that no opportunity/scraping code exists in the codebase.
 
-> **Scope amendment — Phase 4 approved, August 2026.** Explicit approval was given to begin the Verified Opportunity Engine ("PHASE 4 — VERIFIED OPPORTUNITY ENGINE"). The no-scraping, no-fabrication, verification-required constraints from the amendment above remain in force unchanged — approval was to build the *controlled, admin-curated* system described in §10, not to relax those constraints. Dev-order steps 1–4 (database, admin dashboard, verification workflow, ingestion policy) are complete as of this note; see git history for per-module test evidence. §15's roadmap table and §19's "not yet built" list below still read as they did pre-approval and should be read alongside this note, not as contradicting it.
+> **Scope amendment — Phase 4 approved, August 2026.** Explicit approval was given to begin the Verified Opportunity Engine ("PHASE 4 — VERIFIED OPPORTUNITY ENGINE"). The no-scraping, no-fabrication, verification-required constraints from the amendment above remain in force unchanged and permanently — approval was to build the *controlled, admin-curated* system described in §10, not to relax those constraints. **All 17 dev-order steps are now complete**: database schema, admin dashboard, verification workflow, ingestion policy (manual-entry-only, enforced at the single POST endpoint), expiration system, the deterministic matching engine and transparent match score, the personalized feed and opportunity detail pages, save/application tracker, user-facing reporting feeding the admin queue, a one-shot AI application assistant grounded only in real profile data, dashboard integration, and a final testing/security/data-quality audit (which added an exact-duplicate ingestion guard and corrected several stale claims in this document — see git history for the commit). §15's roadmap table and §19's "not yet built" list have been updated below to match; they no longer describe a not-started system.
 
 ---
 
@@ -125,7 +125,7 @@ Edge cases the journey must handle explicitly: a user who abandons the assessmen
     ├── /admin/users
     ├── /admin/careers            (career knowledge base CRUD)
     ├── /admin/skills
-    ├── /admin/opportunities      (Phase 5 — verification queue)
+    ├── /admin/opportunities      (shipped — verification queue, Phase 4)
     ├── /admin/resources          (learning resources CRUD)
     ├── /admin/analytics
     └── /admin/ai-config           (prompt/version management, guarded)
@@ -147,9 +147,9 @@ Relationships first, in prose, before any table definition — this is a normali
 
 **Side-income cluster.** `side_opportunities` is the admin-curated catalog of side-income archetypes (Social Media Assistant, Virtual Assistant, etc. — structurally similar to `career_profiles` but scoped to fast-start, low-barrier work). A generated `side_income_matches` table (analogous to `career_matches`) stores per-user scored results so the dashboard doesn't recompute on every load.
 
-**Opportunity cluster (Phase 5, schema reserved now).** `opportunities` is the verified, sourced listing catalog (jobs/internships/scholarships/etc.), always carrying `source_url` and `verified_at` — never AI-authored. `opportunity_matches` is generated per user, analogous to `career_matches`, storing a match score and the specific gaps preventing a stronger match.
+**Opportunity cluster (Phase 4, shipped).** `opportunities` is the verified, sourced listing catalog (jobs/internships/scholarships/etc.), always carrying `sourceUrl` and `lastVerifiedAt` — never AI-authored. `opportunity_matches` is generated per user, analogous to `career_matches`, storing a match score and the specific eligibility gaps preventing a stronger match. `opportunity_applications` (save/track) and `opportunity_reports` (user-facing "report a problem," feeding the admin queue) round out the cluster.
 
-**Portfolio & applications (Phase 3/6).** `portfolio_projects` is 1:many off `users`, optionally linked to a `career_profile` or `roadmap_task` it fulfills. `applications` tracks opportunities/side-jobs the user says they've pursued — this is the platform's real success signal (§35 of the brief).
+**Portfolio & applications.** `portfolio_projects` (Phase 2, shipped) is 1:many off `users`, optionally linked to a `career_profile` or `roadmap_task` it fulfills. `opportunity_applications` (Phase 4, shipped — see the cluster above) tracks opportunities the user says they've saved or applied to, entirely by their own action — this is the platform's real success signal (§35 of the brief).
 
 **Conversation & system cluster.** `ai_conversations` (1:many off `users`) and `ai_messages` (1:many off `ai_conversations`) store the assistant history, each message tagged with the profile-snapshot version used, so answers stay auditable. `notifications` is 1:many off `users` (deadline reminders, roadmap nudges — mostly Phase 3+).
 
@@ -173,8 +173,10 @@ Relationships first, in prose, before any table definition — this is a normali
 | `roadmap_tasks` | Ordered, trackable steps | many:1 `roadmaps` |
 | `side_opportunities` | Curated side-income catalog | many:many `skills` |
 | `side_income_matches` | Generated, scored side-income fit | many:1 `users`, `side_opportunities` |
-| `opportunities` | Verified external listings (Phase 5) | — |
-| `opportunity_matches` | Generated match (Phase 5) | many:1 `users`, `opportunities` |
+| `opportunities` | Verified external listings (Phase 4, shipped) | — |
+| `opportunity_matches` | Generated match (Phase 4, shipped) | many:1 `users`, `opportunities` |
+| `opportunity_applications` | Save/track (Phase 4, shipped) | many:1 `users`, `opportunities` |
+| `opportunity_reports` | User-facing report (Phase 4, shipped) | many:1 `users`, `opportunities` |
 | `portfolio_projects` | User's tracked work | many:1 `users`; optional link to `career_profiles`/`roadmap_tasks` |
 | `applications` | User-logged pursuit of an opportunity | many:1 `users`; optional link to `opportunities` |
 | `notifications` | Reminders/nudges | many:1 `users` |
@@ -360,7 +362,7 @@ Since this is a stated design constraint (§17, §33 of the brief), MVP UI must:
 |---|---|---|
 | **Phase 1 — Foundation** | Landing page, auth, progressive profile, self-discovery assessment | 3–4 weeks — shipped |
 | **Phase 2 — Career Engine** | Career + side-income knowledge bases (seed-curated), deterministic recommendation engine, career exploration pages, skill-gap analysis, roadmap generator, AI assistant, progress tracking, portfolio tracker | 6–8 weeks |
-| **Phase 3 — Opportunity Engine** | Opportunity database, verification workflow, matching — **requires explicit approval to start (see the August 2026 scope amendment)** | Not started |
+| **Phase 3/4 — Opportunity Engine** | Opportunity database, verification workflow, controlled manual ingestion, expiration, deterministic matching, personalized feed, save/tracker, reporting, AI application assistant, dashboard integration | **Shipped** — dev-order 1–17 complete, see the Phase 4 approval note above |
 | **Phase 4 — Growth** | CV assistance, mentorship/employer matching, richer admin console | Post-MVP, scoped later |
 
 Phase 1–2 constitute the MVP (§2, as amended). Side-income, the AI assistant, and the portfolio tracker were pulled forward from the original Phase 3/4/6 into Phase 2 per the amendment — the career engine now ships as one coherent unit before anything opportunity-related is touched.
@@ -383,7 +385,7 @@ Phase 1–2 constitute the MVP (§2, as amended). Side-income, the AI assistant,
 | AI assistant | Medium | Retrieval + profile context; the hard part is scoping and guardrails, not the chat UI |
 | Dashboard | Low–Medium | Aggregation view over already-built data |
 | Admin console (MVP-minimal) | Medium | Needed to operate the knowledge base; keep deliberately thin at first |
-| Opportunity engine (Phase 5) | High | Sourcing + verification workflow is an ongoing content-operations problem, not just engineering |
+| Opportunity engine (Phase 4, shipped) | High | Sourcing + verification workflow is an ongoing content-operations problem, not just engineering — the engineering side (schema, admin workflow, matching, feed, tracker, reporting) is built; the content-operations side (actually sourcing and verifying a growing catalog) is ongoing by nature |
 | Portfolio builder (Phase 6) | Medium | File storage + simple CRUD, low algorithmic complexity |
 
 ---
@@ -414,14 +416,14 @@ Phase 1–2 constitute the MVP (§2, as amended). Side-income, the AI assistant,
 | Over-collecting personal data, especially from minors | Trust and legal/reputational risk | Data-minimization by design (§13); minor-specific defaults; no data collected "for later" |
 | Low-bandwidth/low-device users excluded in practice | Excludes a large share of the actual target market | Performance and low-bandwidth UX are launch requirements, not a post-launch optimization pass (§14.4) |
 | Career advice that reads as US/Europe-centric | Undermines the core "built for young Africans" positioning | Career pathways, subjects, and side-income options are curated per-market starting with Cameroon; no career profile ships without local pathway/opportunity context |
-| Scope creep toward the full opportunity marketplace before MVP validates | Delays the core value loop the product actually needs to prove first | Opportunity engine is explicitly Phase 5, schema reserved but not built, per §19 |
+| Scope creep toward an uncontrolled opportunity marketplace | Would undermine the trust promise the verification workflow exists to guarantee | The shipped Opportunity Engine (§10, §19) stays admin-curated and manual-entry-only by design — no scraping/crawling/bulk import, an exact-duplicate ingestion guard, and every listing keeps its verification status and original source; automated applications, employer dashboards, and paid placement remain out of scope per §19 |
 | AI cost scaling unpredictably with usage | Margin/runway risk as user base grows | Recommendations are computed once and persisted (not regenerated per page view); rate limits on AI-invoking endpoints |
 
 ---
 
 ## 19. What Should NOT Be Built in the MVP
 
-- **The opportunity engine, in any form** — no scraping/crawling of LinkedIn, Indeed, Glassdoor, Google Jobs, Facebook, Telegram, WhatsApp, or any job board; no automated collection of scholarships, fellowships, grants, or internships; no opportunity matching, alerts, or employer matching; not even the reserved schema until explicitly approved (a change from the original plan, where the schema was reserved early — see the August 2026 scope amendment). Any UI slot for this stays visibly "Coming soon," never dressed up as functional.
+- **Automated or bulk opportunity ingestion, in any form — permanent, not a pre-approval placeholder.** No scraping/crawling of LinkedIn, Indeed, Glassdoor, Google Jobs, Facebook, Telegram, WhatsApp, or any job board; no CSV/bulk importer or feed poller; no automated collection of scholarships, fellowships, grants, or internships. The Opportunity Engine itself **is built** (Phase 4, dev-order 1–17, approved and shipped — see the scope amendment above): admin-curated, one-record-at-a-time manual entry through a single validated endpoint, verification workflow, deterministic matching, personalized feed, save/tracker, and user-side reporting. What stays out of scope is everything that would make it uncontrolled: automated collection, automated applications, employer dashboards, and paid placement (see §10 for the full architecture and this constraint's rationale).
 - AI CV builder, AI interview coach, LinkedIn optimizer.
 - Mentorship matching, employer matching, career communities.
 - WhatsApp/low-bandwidth messaging interface — architecture should not preclude it later, but it is not built now.
@@ -449,7 +451,7 @@ Phase 1–2 constitute the MVP (§2, as amended). Side-income, the AI assistant,
 12. Apply the security/privacy baseline end-to-end (§13): data export, account deletion, minor-safeguarding defaults, rate limiting, audit log on admin actions.
 13. Performance/low-bandwidth pass across the core flows (§14.4).
 14. Closed pilot with a small real cohort in Cameroon; instrument the meaningful-action metrics from §35 of the brief (skills started, projects completed, applications submitted) rather than vanity engagement metrics.
-15. **Stop. Review pilot data and this plan against reality before starting Phase 5 (Opportunity Engine) or Phase 6 (Growth).**
+15. ~~Stop. Review pilot data and this plan against reality before starting Phase 5 (Opportunity Engine) or Phase 6 (Growth).~~ The Phase 5/Opportunity Engine gate was passed by explicit approval (see the August 2026 scope amendments above) and it has since shipped in full. The same stop-and-review discipline still applies before Phase 6 (Growth) — CV assistance, mentorship/employer matching, a richer admin console, or anything else in §19's out-of-scope list.
 
 ---
 

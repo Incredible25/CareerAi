@@ -54,6 +54,30 @@ export async function POST(request: Request) {
   }
   const data = parsed.data;
 
+  // Narrow, exact-match guard (dev-order 15-17 audit) — title +
+  // organization + the same application link is never a coincidence
+  // (e.g. a double-submitted form), unlike two genuinely different
+  // postings that happen to share a generic title. Doesn't try to
+  // fuzzy-match near-duplicates; that would risk false positives
+  // blocking legitimate re-postings and isn't this admin-only, one-
+  // at-a-time ingestion path's job.
+  const exactDuplicate = await prisma.opportunity.findFirst({
+    where: {
+      title: { equals: data.title, mode: "insensitive" },
+      organization: { equals: data.organization, mode: "insensitive" },
+      applicationUrl: data.applicationUrl,
+    },
+    select: { id: true, title: true },
+  });
+  if (exactDuplicate) {
+    return NextResponse.json(
+      {
+        error: `An opportunity with this exact title, organization, and application link already exists (id: ${exactDuplicate.id}).`,
+      },
+      { status: 409 }
+    );
+  }
+
   const opportunity = await prisma.opportunity.create({
     data: {
       title: data.title,
