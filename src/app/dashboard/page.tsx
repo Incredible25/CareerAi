@@ -5,6 +5,8 @@ import { getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { isOnboardingComplete } from "@/lib/onboarding";
 import { getLatestCareerMatches, getSideIncomeMatches } from "@/lib/career-engine/generate";
+import { getOpportunityMatches } from "@/lib/opportunities/generate";
+import { scoreLabel } from "@/lib/opportunities/matching";
 import { AppHeader } from "@/components/app-header";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -37,6 +39,7 @@ export default async function DashboardPage() {
     sideIncomeMatches,
     roadmaps,
     portfolioProjects,
+    opportunityMatches,
   ] = await Promise.all([
     prisma.assessment.findFirst({ where: { userId: user.id, status: "COMPLETED" }, orderBy: { completedAt: "desc" } }),
     prisma.assessment.findFirst({ where: { userId: user.id, status: "IN_PROGRESS" }, orderBy: { startedAt: "desc" } }),
@@ -44,6 +47,11 @@ export default async function DashboardPage() {
     getSideIncomeMatches(user.id).then((m) => m.slice(0, 2)),
     prisma.roadmap.findMany({ where: { userId: user.id }, include: { career: true, tasks: true } }),
     prisma.portfolioProject.findMany({ where: { userId: user.id } }),
+    // Read-only, same as career/side-income matches above — the dashboard
+    // is a lightweight summary and never forces a recompute itself; a
+    // full recompute only happens when the user actually visits
+    // /opportunities (Phase 4, dev-order 8-9).
+    getOpportunityMatches(user.id).then((m) => m.slice(0, 3)),
   ]);
 
   const firstName = user.name.split(" ")[0] ?? user.name;
@@ -57,6 +65,14 @@ export default async function DashboardPage() {
   const portfolioPercent = Math.min(100, Math.round((completedProjects / 3) * 100));
 
   const careerDiscoveryPercent = assessmentStatus === "done" ? 100 : assessmentStatus === "in_progress" ? 50 : 0;
+
+  // "Ready" means no unmet hard-eligibility requirement (education,
+  // country, on-site location — see Phase 4's cap-and-flag matching
+  // engine) among the top matches shown below, not a probability of
+  // being accepted.
+  const eligibleMatches = opportunityMatches.filter((m) => m.eligibilityFlags.length === 0).length;
+  const opportunityReadinessPercent =
+    opportunityMatches.length > 0 ? Math.round((eligibleMatches / opportunityMatches.length) * 100) : 0;
 
   const badgeContext: BadgeContext = {
     assessmentDone: assessmentStatus === "done",
@@ -92,7 +108,16 @@ export default async function DashboardPage() {
               <ProgressRow label="Career discovery" percent={careerDiscoveryPercent} />
               <ProgressRow label="Skill development" percent={skillDevelopmentPercent} note={totalTasks === 0 ? "Pick a career to start a roadmap" : `${doneTasks} of ${totalTasks} tasks done`} />
               <ProgressRow label="Portfolio" percent={portfolioPercent} note={`${completedProjects} completed project${completedProjects === 1 ? "" : "s"}`} />
-              <ProgressRow label="Opportunity readiness" percent={0} note="Coming soon" muted />
+              <ProgressRow
+                label="Opportunity readiness"
+                percent={opportunityReadinessPercent}
+                note={
+                  opportunityMatches.length === 0
+                    ? "No opportunity matches yet"
+                    : `${eligibleMatches} of ${opportunityMatches.length} top matches have no eligibility gaps`
+                }
+                muted={opportunityMatches.length === 0}
+              />
             </div>
 
             {earnedBadges.length > 0 && (
@@ -196,19 +221,41 @@ export default async function DashboardPage() {
         </div>
 
         <div className="mt-10">
-          <h2 className="font-display text-lg font-bold text-ink">Coming soon</h2>
-          <p className="mt-1 max-w-xl text-sm text-ink-soft">
-            3Doors is deliberately not showing job, internship, scholarship, or opportunity listings
-            yet — that system requires a verification process we haven&apos;t built, and won&apos;t
-            ship until it can guarantee nothing here is invented or unverified.
-          </p>
-          <div className="card mt-4 opacity-80 sm:max-w-sm">
-            <span className="badge">Coming soon — pending approval</span>
-            <h3 className="mt-2 font-display text-sm font-bold text-ink">Opportunity matching</h3>
-            <p className="mt-1 text-xs text-ink-soft">
-              Verified jobs, internships, scholarships, and grants matched to your profile, once built.
-            </p>
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-lg font-bold text-ink">Opportunities for you</h2>
+            <Link href="/opportunities" className="text-xs font-medium text-green-500 hover:text-orange-500">
+              See all opportunities →
+            </Link>
           </div>
+          <p className="mt-1 max-w-xl text-sm text-ink-soft">
+            Verified jobs, internships, scholarships, and grants, ranked against your career
+            matches and skills — never scraped or invented, and eligibility gaps are always shown.
+          </p>
+
+          {opportunityMatches.length === 0 ? (
+            <div className="card mt-4 sm:max-w-sm">
+              <p className="text-sm text-ink-soft">No opportunity matches yet.</p>
+              <Link href="/opportunities" className="btn-secondary mt-3 inline-flex !px-4 !py-2 text-sm">
+                See opportunities for you
+              </Link>
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {opportunityMatches.map((m) => (
+                <Link key={m.id} href={`/opportunities/${m.opportunityId}`} className="card block hover:border-green-500/50">
+                  <p className="font-mono text-xs text-ink-faint">{m.opportunity.organization}</p>
+                  <h3 className="mt-0.5 font-display text-sm font-bold text-ink">{m.opportunity.title}</h3>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-xs text-ink-faint">{scoreLabel(m.matchScore)} match</span>
+                    <span className="font-mono text-sm font-bold text-green-500">{m.matchScore}%</span>
+                  </div>
+                  {m.eligibilityFlags.length > 0 && (
+                    <p className="mt-1.5 text-xs font-medium text-orange-600">⚠ {m.eligibilityFlags.length} eligibility gap{m.eligibilityFlags.length === 1 ? "" : "s"}</p>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>
