@@ -46,7 +46,7 @@ export default async function MatchesPage() {
 
       <main className="mx-auto max-w-3xl px-6 pt-10 sm:px-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <span className="badge badge-ai">3Doors Fit Score — AI-assisted guidance, not a guarantee</span>
+          <span className="badge badge-ai">3Doors Fit Score — calculated from your answers, not a guarantee</span>
           <RefreshMatchesButton />
         </div>
         <h1 className="mt-3 text-2xl font-bold text-ink sm:text-3xl">Your career matches</h1>

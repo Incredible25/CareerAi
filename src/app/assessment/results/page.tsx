@@ -32,7 +32,7 @@ export default async function AssessmentResultsPage() {
       </header>
 
       <main className="mx-auto max-w-xl px-6 pb-24">
-        <span className="badge badge-ai">AI-assisted guidance tool</span>
+        <span className="badge badge-ai">Self-discovery guidance tool</span>
         <h1 className="mt-4 text-2xl font-bold text-ink">Your self-discovery profile</h1>
         <p className="mt-2 text-sm text-ink-soft">
           This reflects how you described yourself just now — not a fixed label. It&apos;s a

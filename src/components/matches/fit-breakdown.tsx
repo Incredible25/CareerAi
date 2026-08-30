@@ -56,7 +56,9 @@ export function FitBreakdownDetails({ breakdown }: { breakdown: unknown }) {
       </div>
       <p className="mt-2 text-[11px] text-ink-faint">
         Every factor above is calculated directly from your profile and assessment — nothing here
-        is generated or estimated by AI.
+        is generated or estimated by AI. A factor sitting around 50% usually means we don&apos;t
+        have enough information yet for that part of your profile, not that it&apos;s a
+        middling match — the more of your profile you fill in, the sharper these numbers get.
       </p>
     </details>
   );

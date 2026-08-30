@@ -57,7 +57,7 @@ The only way a user's score changes is a real change to their own data, the
 catalog, or a formula version bump (`CAREER_ENGINE_VERSION`,
 `scoring.ts:42`) — never sampling noise.
 
-## 4. Explanation quality — Pass, with one contradiction (routed to Module 3)
+## 4. Explanation quality — Pass, with one contradiction (fixed in Module 3)
 
 The `reasons[]` strings are plain-language and specific: "Strong interest in
 technology & software," "You already have JavaScript," "Matches your
@@ -74,10 +74,16 @@ secondary-school student without a glossary.
 generated or estimated by AI,"* while the badge directly above it on the
 same page (`src/app/matches/page.tsx:49`) reads *"AI-assisted guidance, not
 a guarantee."* Both can't be true about the same score, and the code proves
-the first one is correct — this is stale/wrong copy on the badge, not an
-engine defect. Already scoped to Module 3 (recommendation safety & trust);
-not re-litigated or fixed here to stay consistent with the plan the user
-approved.
+the first one is correct — this was stale/wrong copy on the badge, not an
+engine defect. **Fixed in Module 3**: the badge now reads "calculated from
+your answers, not a guarantee" (`src/app/matches/page.tsx:49`); the same
+false claim on `/assessment/results` ("AI-assisted guidance tool") was
+fixed to "Self-discovery guidance tool"
+(`src/app/assessment/results/page.tsx:35`). Module 3 also strengthened the
+breakdown disclosure itself to acknowledge the neutral-default behavior
+from finding #11 below: a factor sitting near 50% "usually means we don't
+have enough information yet... not that it's a middling match"
+(`src/components/matches/fit-breakdown.tsx:58-61`).
 
 ## 5. Academic fit — Pass
 
@@ -187,7 +193,7 @@ run (matches → career detail → plan, each with clear "Explore this career"
 | 1 | Relevance | Pass |
 | 2 | Personalization | Pass |
 | 3 | Consistency | Pass |
-| 4 | Explanation quality | Pass (1 contradiction → Module 3) |
+| 4 | Explanation quality | Pass (1 contradiction, fixed in Module 3) |
 | 5 | Academic fit | Pass |
 | 6 | Interest fit | Pass |
 | 7 | Skill fit | Pass |
