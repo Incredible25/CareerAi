@@ -4,6 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { opportunitySchema } from "@/lib/validation/opportunities";
 import type { Prisma } from "@prisma/client";
 
+/**
+ * INGESTION POLICY (docs/PRODUCT_STRATEGY.md §10, Phase 4 Module 4):
+ * this POST handler is, deliberately, the *only* way an Opportunity row
+ * can ever be created — one fully-validated object per request, entered
+ * by an authenticated admin. There is no scraper, crawler, CSV/bulk
+ * importer, or feed poller anywhere in this codebase, and none should be
+ * added that bypasses this endpoint. If automated ingestion (an approved
+ * API/feed) is ever built, it must call this same path with the same
+ * validation and the same forced-UNVERIFIED default below — not a
+ * second, lower-friction endpoint next to it.
+ */
+
 export async function GET(request: Request) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Not authorized." }, { status: 403 });

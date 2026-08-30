@@ -4,9 +4,11 @@
 
 Prepared as the CTO founding brief for 3Doors — an AI-powered career discovery, planning, and opportunity navigation platform for students, graduates, and young professionals in Africa, starting in Cameroon.
 
-Status: **Planning only. No application code has been written.** This document is Phases 1–10 of the development process (PRD → wireframes/IA → architecture). Implementation begins only after sign-off.
+Status: **In active implementation.** Foundation (auth, profile, assessment), the Career Guidance Engine (recommendations, skill gaps, roadmaps, side-income, AI assistant, portfolio), and the Verified Opportunity Engine (in progress) are built and tested module by module against a live database, each committed and pushed as it lands. This document remains the living architecture record — it is updated alongside the code, not just written once up front.
 
 > **Scope amendment — August 2026.** Priorities were re-sequenced after Phase 1 shipped: the **Opportunity Engine is deferred and requires explicit approval before any work starts on it** — no scraping, crawling, or automated collection of jobs/scholarships/internships/grants in the meantime, and no opportunity-matching UI presented as functional. The MVP's job is to make the **career guidance engine** (assessment → recommendation → skill gap → roadmap → side-income → AI assistant → progress → portfolio) genuinely useful on its own first. This changes the priority order in §15/§19 below; §2, §6, §9, and §31 are otherwise unchanged in substance. See the audit note in the Phase 2 commit for confirmation that no opportunity/scraping code exists in the codebase.
+
+> **Scope amendment — Phase 4 approved, August 2026.** Explicit approval was given to begin the Verified Opportunity Engine ("PHASE 4 — VERIFIED OPPORTUNITY ENGINE"). The no-scraping, no-fabrication, verification-required constraints from the amendment above remain in force unchanged — approval was to build the *controlled, admin-curated* system described in §10, not to relax those constraints. Dev-order steps 1–4 (database, admin dashboard, verification workflow, ingestion policy) are complete as of this note; see git history for per-module test evidence. §15's roadmap table and §19's "not yet built" list below still read as they did pre-approval and should be read alongside this note, not as contradicting it.
 
 ---
 
@@ -234,7 +236,15 @@ Deliberately decoupled from the long-term career match — this answers "what ca
 
 ---
 
-## 10. Opportunity Matching Methodology (Phase 5, architecture reserved now)
+## 10. Opportunity Matching Methodology
+
+> **Status (Phase 4).** Approved and underway — see the amendment below. This section's matching methodology reflects the original design and will be updated to match the actual implementation once dev-order steps 6–7 (Matching Engine + Match Score) ship.
+
+**Ingestion policy (Phase 4, Module 4).** The only way an `Opportunity` row can be created is a single, fully-validated `POST /api/admin/opportunities` call, made by an authenticated admin, filling in every required field by hand (title, organization, description, application URL, a `Source`, and the exact source URL the facts came from) — confirmed by code audit: there is no scraper, crawler, HTTP-fetch helper, CSV/bulk-import endpoint, or feed-polling job anywhere in the codebase, and the creation endpoint accepts exactly one opportunity object per request, never an array. Every new row starts `verificationStatus = UNVERIFIED`; nothing in the ingestion path can set it otherwise (see the verification-workflow architecture note below).
+
+This is a **structural boundary, not a policy reminder**: adding automated ingestion later — an approved API/feed, say — means that code must still call the same creation path with the same validation and the same forced-`UNVERIFIED` default. There is no lower-friction shortcut sitting next to it to be tempted into using; extending ingestion means extending *this* endpoint's caller, not adding a second one that bypasses its guarantees.
+
+**Verification architecture.** New opportunities default to `UNVERIFIED`. Only four admin-only, single-item actions can ever change that: `verify`, `reject`, `expire`, `archive` (`POST /api/admin/opportunities/[id]/{action}`) — no AI call, generic field edit, or bulk operation can reach `VERIFIED`. The public-facing feed, matching engine, and dashboard only ever query `verificationStatus = VERIFIED AND opportunityStatus = ACTIVE`; this is the actual mechanism behind "never present unverified as verified," not just a display label.
 
 Strictly database-driven — the AI never invents or paraphrases-into-existence an opportunity. Matching is a two-stage filter:
 
