@@ -8,23 +8,10 @@ import { getLatestCareerMatches, getSideIncomeMatches } from "@/lib/career-engin
 import { getOpportunityMatches } from "@/lib/opportunities/generate";
 import { scoreLabel } from "@/lib/opportunities/matching";
 import { getNextAction } from "@/lib/career-engine/next-action";
+import { computeProgress, getEarnedBadges } from "@/lib/career-engine/progress";
 import { AppHeader } from "@/components/app-header";
 
 export const metadata: Metadata = { title: "Dashboard" };
-
-const BADGES: { key: string; label: string; earned: (ctx: BadgeContext) => boolean }[] = [
-  { key: "explorer", label: "Career Explorer", earned: (ctx) => ctx.assessmentDone },
-  { key: "skill-builder", label: "Skill Builder", earned: (ctx) => ctx.tasksDone > 0 },
-  { key: "portfolio-starter", label: "Portfolio Starter", earned: (ctx) => ctx.portfolioCount > 0 },
-  { key: "first-project", label: "First Project", earned: (ctx) => ctx.portfolioCompleted > 0 },
-];
-
-type BadgeContext = {
-  assessmentDone: boolean;
-  tasksDone: number;
-  portfolioCount: number;
-  portfolioCompleted: number;
-};
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -41,6 +28,7 @@ export default async function DashboardPage() {
     roadmaps,
     portfolioProjects,
     opportunityMatches,
+    trackedOpportunityCount,
   ] = await Promise.all([
     prisma.assessment.findFirst({ where: { userId: user.id, status: "COMPLETED" }, orderBy: { completedAt: "desc" } }),
     prisma.assessment.findFirst({ where: { userId: user.id, status: "IN_PROGRESS" }, orderBy: { startedAt: "desc" } }),
@@ -53,6 +41,7 @@ export default async function DashboardPage() {
     // full recompute only happens when the user actually visits
     // /opportunities (Phase 4, dev-order 8-9).
     getOpportunityMatches(user.id).then((m) => m.slice(0, 3)),
+    prisma.opportunityApplication.count({ where: { userId: user.id } }),
   ]);
 
   const firstName = user.name.split(" ")[0] ?? user.name;
@@ -60,28 +49,26 @@ export default async function DashboardPage() {
 
   const totalTasks = roadmaps.reduce((sum, r) => sum + r.tasks.length, 0);
   const doneTasks = roadmaps.reduce((sum, r) => sum + r.tasks.filter((t) => t.status === "DONE").length, 0);
-  const skillDevelopmentPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
-
   const completedProjects = portfolioProjects.filter((p) => p.status === "COMPLETED").length;
-  const portfolioPercent = Math.min(100, Math.round((completedProjects / 3) * 100));
-
-  const careerDiscoveryPercent = assessmentStatus === "done" ? 100 : assessmentStatus === "in_progress" ? 50 : 0;
-
-  // "Ready" means no unmet hard-eligibility requirement (education,
-  // country, on-site location — see Phase 4's cap-and-flag matching
-  // engine) among the top matches shown below, not a probability of
-  // being accepted.
   const eligibleMatches = opportunityMatches.filter((m) => m.eligibilityFlags.length === 0).length;
-  const opportunityReadinessPercent =
-    opportunityMatches.length > 0 ? Math.round((eligibleMatches / opportunityMatches.length) * 100) : 0;
 
-  const badgeContext: BadgeContext = {
+  const { careerDiscoveryPercent, skillDevelopmentPercent, portfolioPercent, opportunityReadinessPercent } =
+    computeProgress({
+      assessmentStatus,
+      doneTasks,
+      totalTasks,
+      completedPortfolioProjects: completedProjects,
+      opportunityMatchCount: opportunityMatches.length,
+      eligibleOpportunityMatchCount: eligibleMatches,
+    });
+
+  const earnedBadges = getEarnedBadges({
     assessmentDone: assessmentStatus === "done",
     tasksDone: doneTasks,
     portfolioCount: portfolioProjects.length,
     portfolioCompleted: completedProjects,
-  };
-  const earnedBadges = BADGES.filter((b) => b.earned(badgeContext));
+    trackedOpportunityCount,
+  });
 
   const nextAction = getNextAction({
     assessmentStatus,
