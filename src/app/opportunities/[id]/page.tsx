@@ -18,6 +18,7 @@ import { AppHeader } from "@/components/app-header";
 import { OpportunityMatchBreakdownDetails } from "@/components/opportunities/match-breakdown";
 import { SaveButton } from "@/components/opportunities/save-button";
 import { ReportButton } from "@/components/opportunities/report-button";
+import { ApplicationAssistant } from "@/components/opportunities/application-assistant";
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const opportunity = await prisma.opportunity.findUnique({ where: { id: params.id } });
@@ -152,6 +153,8 @@ export default async function OpportunityDetailsPage({ params }: { params: { id:
             </Link>
           </div>
         )}
+
+        <ApplicationAssistant opportunityId={opportunity.id} />
 
         <Section title="About this opportunity">
           <p className="whitespace-pre-line text-sm text-ink-soft">{opportunity.description}</p>

@@ -6,7 +6,7 @@ Stay scoped to: career discovery, skill development, career planning, side-incom
 
 Rules you must follow:
 - This is career guidance, not a professional psychological, medical, legal, or financial assessment. Never present it as one.
-- Never invent specific job openings, companies, scholarships, grants, or deadlines. 3Doors does not have an opportunity listing system yet. If asked where to find live openings, say so plainly and suggest searching directly, asking their network, or checking organizations they're interested in — do not name specific "current" openings.
+- Never invent specific job openings, companies, scholarships, grants, or deadlines yourself. 3Doors does have a verified opportunity board with personalized matches — if asked where to find live openings, point them to their opportunities feed rather than naming any yourself. Only opportunities 3Doors has actually verified and shown them are real; you have no visibility into openings beyond that.
 - Never state or imply guaranteed income or employment outcomes.
 - Avoid absolute claims like "you should become X." Prefer "X could be a strong fit because..." and mention at least one alternative when recommending a direction.
 - Ground answers in the user's own profile below when relevant, but don't just repeat it back — actually help.
@@ -71,4 +71,88 @@ export async function buildAssistantContext(userId: string): Promise<string> {
   }
 
   return lines.length > 0 ? lines.join("\n") : "This user hasn't completed their profile or assessment yet.";
+}
+
+/**
+ * Phase 4, dev-order 13 — the one-shot application assistant. Deliberately
+ * a separate, narrower prompt from ASSISTANT_SYSTEM_PROMPT above: this one
+ * is scoped to a single real opportunity and grounded only in facts pulled
+ * fresh from the database below (the opportunity's own requirements, the
+ * user's own skills/education/portfolio, and the already-computed
+ * deterministic OpportunityMatch reasons/eligibilityFlags — never
+ * re-derived or guessed at by the model). The standing rule this exists to
+ * enforce: the AI may explain and suggest, but must never invent or imply
+ * work experience, job titles, employment dates, certifications, or
+ * achievements the user hasn't actually told 3Doors about.
+ */
+export const APPLICATION_ASSISTANT_SYSTEM_PROMPT = `You are the 3Doors Application Assistant. You help a user think through how to present themselves for ONE specific opportunity, using only the verified facts listed below under OPPORTUNITY and USER PROFILE.
+
+Hard rules:
+- Never invent or imply work experience, job titles, employment dates, certifications, degrees, or specific achievements that are not explicitly listed below. If it isn't in the facts below, you don't know it.
+- Do not draft first-person claims as if you were the user (e.g. never write "I have 5 years of experience in..." unless that exact fact is listed). Give the user talking points and structure in the third person or as suggestions ("You could mention...", "Worth highlighting:...") — they write their own application in their own words.
+- If the user's real background is missing something this opportunity wants, say so plainly rather than papering over it or suggesting they imply they have it.
+- This is guidance only. 3Doors never submits applications and this is not a completed application — make that boundary clear if it's ever ambiguous.
+- The match score and eligibility notes below are already calculated by deterministic rules, not by you — reference them, don't recompute or contradict them, and never restate the score as a probability of being accepted.
+
+Keep the response short and concrete: three brief sections — "Strengths to lead with", "What to be upfront about", and "A tip for getting started" — a few lines each, no filler.`;
+
+export async function buildApplicationAssistantContext(userId: string, opportunityId: string): Promise<string> {
+  const [opportunity, education, userSkills, portfolioProjects, match] = await Promise.all([
+    prisma.opportunity.findUnique({
+      where: { id: opportunityId },
+      include: { skills: { include: { skill: true } } },
+    }),
+    prisma.education.findFirst({ where: { userId, isCurrent: true } }),
+    prisma.userSkill.findMany({ where: { userId }, include: { skill: true } }),
+    prisma.portfolioProject.findMany({ where: { userId, status: { not: "PLANNED" } }, take: 10 }),
+    prisma.opportunityMatch.findUnique({ where: { userId_opportunityId: { userId, opportunityId } } }),
+  ]);
+
+  if (!opportunity) return "OPPORTUNITY: not found.";
+
+  const lines: string[] = [];
+
+  lines.push(
+    `OPPORTUNITY: "${opportunity.title}" at ${opportunity.organization} (${opportunity.category}). ${opportunity.description}`
+  );
+  if (opportunity.eligibilityText) lines.push(`Stated eligibility: ${opportunity.eligibilityText}`);
+  if (opportunity.skills.length > 0) {
+    lines.push(
+      `Skills the opportunity lists: ${opportunity.skills
+        .map((s) => `${s.skill.name}${s.required ? "" : " (nice to have)"}`)
+        .join(", ")}.`
+    );
+  }
+
+  lines.push("");
+  lines.push("USER PROFILE:");
+  if (education) {
+    lines.push(`Education: ${education.level}${education.program ? `, ${education.program}` : ""}.`);
+  }
+  if (userSkills.length > 0) {
+    lines.push(`Skills the user actually has: ${userSkills.map((s) => `${s.skill.name} (${s.level.toLowerCase()})`).join(", ")}.`);
+  } else {
+    lines.push("Skills the user actually has: none listed yet.");
+  }
+  if (portfolioProjects.length > 0) {
+    lines.push(
+      `Real work the user can point to: ${portfolioProjects
+        .map((p) => `${p.title} (${p.status.toLowerCase().replace("_", " ")})`)
+        .join("; ")}.`
+    );
+  } else {
+    lines.push("Real work the user can point to: nothing logged in their portfolio yet.");
+  }
+
+  if (match) {
+    lines.push("");
+    lines.push(`ALREADY-CALCULATED MATCH (deterministic, not generated by you): ${match.matchScore}% relevance.`);
+    if (match.reasons.length > 0) lines.push(`Why it matched: ${match.reasons.join("; ")}.`);
+    if (match.eligibilityFlags.length > 0) lines.push(`Eligibility gaps already flagged: ${match.eligibilityFlags.join("; ")}.`);
+  } else {
+    lines.push("");
+    lines.push("No match score has been calculated for this opportunity yet.");
+  }
+
+  return lines.join("\n");
 }
