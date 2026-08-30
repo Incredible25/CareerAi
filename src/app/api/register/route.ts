@@ -7,11 +7,17 @@ import { getClientIp, isRateLimited } from "@/lib/rate-limit";
 const BCRYPT_ROUNDS = 12;
 
 export async function POST(request: Request) {
-  // Phase 5, Module 6: unauthenticated route, so keyed on IP rather than
-  // userId — 8 signups per 15 minutes per IP is generous for a real
-  // person (one account, maybe a sibling's) while blunting scripted
-  // signup abuse.
-  if (isRateLimited(`register:${getClientIp(request)}`, 8, 15 * 60 * 1000)) {
+  // Phase 5, Module 6/7: unauthenticated route, so keyed on IP rather
+  // than userId. 20 signups per 15 minutes per IP still clearly blocks a
+  // scripted flood (hundreds/thousands of attempts) while comfortably
+  // accommodating a legitimate shared-IP burst — a school computer lab
+  // or NAT'd household with several real people signing up close
+  // together, the same shape of traffic a CI/QA suite produces against
+  // a staging deployment. (Module 7 caught this empirically: this
+  // project's own E2E suite does ~6 real registrations per run, and an
+  // earlier, tighter limit of 8 started flaking under repeated manual
+  // testing against one long-lived server.)
+  if (isRateLimited(`register:${getClientIp(request)}`, 20, 15 * 60 * 1000)) {
     return NextResponse.json({ error: "Too many attempts. Please try again in a few minutes." }, { status: 429 });
   }
 

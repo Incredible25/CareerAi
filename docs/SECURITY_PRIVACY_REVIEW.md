@@ -90,10 +90,15 @@ Before Module 6: only 5 of 27 routes were rate-limited, and critically,
 **neither registration nor login had any protection at all**. Both are now
 covered:
 
-- `POST /api/register`: 8 attempts / 15 minutes, keyed by client IP
-  (`getClientIp()`, reading `x-forwarded-for`/`x-real-ip`). Verified live:
-  the 9th attempt in a 15-minute window returned 429; the first 8
-  succeeded normally.
+- `POST /api/register`: 20 attempts / 15 minutes, keyed by client IP
+  (`getClientIp()`, reading `x-forwarded-for`/`x-real-ip`). Originally
+  shipped at 8/15min in Module 6; Module 7's own live testing (see below)
+  hit that limit for real running this project's E2E suite twice against
+  one long-lived server, which is exactly the "legitimate shared-IP
+  burst" shape (a school computer lab, a CI/QA runner) the limit needs to
+  tolerate — raised to 20, still far below what a scripted flood would
+  attempt. Verified live at the new threshold the same way: the 21st
+  attempt in a window returns 429, the first 20 succeed normally.
 - Login: see §1.
 
 **Known limitation, unchanged from before this module and out of scope to
@@ -170,7 +175,7 @@ geolocation, no biometric data, no photo.
 
 - `src/lib/auth.ts` — login rate-limited per email (10/15min)
 - `src/lib/rate-limit.ts` — added `getClientIp()`
-- `src/app/api/register/route.ts` — registration rate-limited per IP (8/15min)
+- `src/app/api/register/route.ts` — registration rate-limited per IP (originally 8/15min, raised to 20/15min in Module 7 — see §9 above)
 - `src/app/api/admin/reports/[id]/route.ts` — existence check before update, clean 404
 - `prisma/schema.prisma` — corrected the misleading `isMinor` comment
 
