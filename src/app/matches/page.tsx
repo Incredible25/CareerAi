@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { FeedbackReason } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
@@ -33,9 +34,9 @@ export default async function MatchesPage() {
 
   const feedback = await prisma.feedback.findMany({
     where: { userId: user.id, subjectType: "CAREER_MATCH", subjectId: { in: matches.map((m) => m.id) } },
-    select: { subjectId: true, helpful: true },
+    select: { subjectId: true, helpful: true, reason: true, comment: true },
   });
-  const feedbackByMatchId = new Map(feedback.map((f) => [f.subjectId, f.helpful]));
+  const feedbackByMatchId = new Map(feedback.map((f) => [f.subjectId, f]));
 
   const topFive = matches.slice(0, 5);
   const rest = matches.slice(5);
@@ -62,7 +63,7 @@ export default async function MatchesPage() {
 
         <div className="mt-8 space-y-4">
           {topFive.map((match, i) => (
-            <MatchCard key={match.id} match={match} rank={i + 1} highlight initialHelpful={feedbackByMatchId.get(match.id) ?? null} />
+            <MatchCard key={match.id} match={match} rank={i + 1} highlight feedback={feedbackByMatchId.get(match.id) ?? null} />
           ))}
         </div>
 
@@ -73,7 +74,7 @@ export default async function MatchesPage() {
             </summary>
             <div className="mt-4 space-y-3">
               {rest.map((match, i) => (
-                <MatchCard key={match.id} match={match} rank={i + 6} highlight={false} initialHelpful={feedbackByMatchId.get(match.id) ?? null} />
+                <MatchCard key={match.id} match={match} rank={i + 6} highlight={false} feedback={feedbackByMatchId.get(match.id) ?? null} />
               ))}
             </div>
           </details>
@@ -87,7 +88,7 @@ function MatchCard({
   match,
   rank,
   highlight,
-  initialHelpful,
+  feedback,
 }: {
   match: {
     id: string;
@@ -98,7 +99,7 @@ function MatchCard({
   };
   rank: number;
   highlight: boolean;
-  initialHelpful: boolean | null;
+  feedback: { helpful: boolean; reason: FeedbackReason | null; comment: string | null } | null;
 }) {
   return (
     <div className={"card " + (highlight ? "border-green-500/30" : "")}>
@@ -132,7 +133,12 @@ function MatchCard({
         </Link>
       </div>
 
-      <MatchFeedback careerMatchId={match.id} initialHelpful={initialHelpful} />
+      <MatchFeedback
+        careerMatchId={match.id}
+        initialHelpful={feedback?.helpful ?? null}
+        initialReason={feedback?.reason ?? null}
+        initialComment={feedback?.comment ?? null}
+      />
     </div>
   );
 }

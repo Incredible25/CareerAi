@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "FeedbackReason" AS ENUM ('NOT_RELEVANT', 'ALREADY_KNEW', 'DOESNT_MATCH_INTERESTS', 'DOESNT_MATCH_SUBJECTS', 'NOT_ACCESSIBLE', 'WANT_MORE_INFO', 'OTHER');
+
+-- AlterTable
+ALTER TABLE "feedback" ADD COLUMN     "reason" "FeedbackReason";

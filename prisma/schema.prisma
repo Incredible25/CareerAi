@@ -843,6 +843,22 @@ enum FeedbackSubjectType {
   CAREER_MATCH
 }
 
+// Phase 5, Module 4 — structured reasons for career-match feedback, so
+// "not helpful" is actionable rather than just a downvote count. Nullable
+// and CAREER_MATCH-specific in practice: an AI chat reply doesn't have a
+// "doesn't match my subjects" reason, so the UI never shows this picker
+// for AI_MESSAGE feedback, but the field stays generic on the shared
+// polymorphic table rather than forking a second Feedback-like model.
+enum FeedbackReason {
+  NOT_RELEVANT
+  ALREADY_KNEW
+  DOESNT_MATCH_INTERESTS
+  DOESNT_MATCH_SUBJECTS
+  NOT_ACCESSIBLE
+  WANT_MORE_INFO
+  OTHER
+}
+
 model Feedback {
   id          String              @id @default(cuid())
   userId      String
@@ -850,6 +866,7 @@ model Feedback {
   subjectType FeedbackSubjectType
   subjectId   String
   helpful     Boolean
+  reason      FeedbackReason?
   comment     String?
 
   createdAt DateTime @default(now())

@@ -37,6 +37,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
   const { subjectType, subjectId, helpful, comment } = parsed.data;
+  // The structured reason taxonomy ("doesn't match my subjects", etc.) only
+  // makes sense for a career match — an AI chat reply has no subjects or
+  // accessibility to not-match. Drop it silently for any other subject type
+  // rather than rejecting the request, so a client bug can't turn into a 400.
+  const reason = subjectType === "CAREER_MATCH" ? parsed.data.reason ?? null : null;
 
   if (!(await subjectBelongsToUser(subjectType, subjectId, userId))) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -44,8 +49,8 @@ export async function POST(request: Request) {
 
   const feedback = await prisma.feedback.upsert({
     where: { userId_subjectType_subjectId: { userId, subjectType, subjectId } },
-    create: { userId, subjectType, subjectId, helpful, comment: comment || null },
-    update: { helpful, comment: comment || null },
+    create: { userId, subjectType, subjectId, helpful, reason, comment: comment || null },
+    update: { helpful, reason, comment: comment || null },
   });
 
   return NextResponse.json(feedback);
