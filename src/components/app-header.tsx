@@ -6,6 +6,7 @@ const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/matches", label: "Matches" },
   { href: "/opportunities", label: "Opportunities" },
+  { href: "/applications", label: "Applications" },
   { href: "/side-income", label: "Side income" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/assistant", label: "Assistant" },

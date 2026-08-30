@@ -12,24 +12,26 @@ import {
   EXPERIENCE_LABELS,
   EDUCATION_LEVEL_LABELS,
   SOURCE_TYPE_LABELS,
+  VERIFICATION_LABELS,
 } from "@/lib/opportunities/constants";
 import { AppHeader } from "@/components/app-header";
 import { OpportunityMatchBreakdownDetails } from "@/components/opportunities/match-breakdown";
+import { SaveButton } from "@/components/opportunities/save-button";
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const opportunity = await prisma.opportunity.findFirst({
-    where: { id: params.id, ...visibleOpportunityWhere() },
-  });
+  const opportunity = await prisma.opportunity.findUnique({ where: { id: params.id } });
   return { title: opportunity?.title ?? "Opportunity" };
 }
 
 export default async function OpportunityDetailsPage({ params }: { params: { id: string } }) {
-  // The same visibility gate the feed and every other public query uses
-  // (Phase 4, Module 5) — an opportunity that isn't VERIFIED, ACTIVE, and
-  // not past its deadline 404s here exactly as it would in the feed,
-  // regardless of who has the direct link.
-  const opportunity = await prisma.opportunity.findFirst({
-    where: { id: params.id, ...visibleOpportunityWhere() },
+  // Fetched without the visibility filter first: a user who saved or
+  // applied to this before it expired/got unverified/got archived must
+  // still be able to open their own tracked page (dev-order 10-11's
+  // application tracker links here) — only *discovering* a hidden
+  // opportunity is blocked, not looking back at one you already engaged
+  // with. See the isVisible check below.
+  const opportunity = await prisma.opportunity.findUnique({
+    where: { id: params.id },
     include: {
       source: true,
       skills: { include: { skill: true } },
@@ -45,14 +47,25 @@ export default async function OpportunityDetailsPage({ params }: { params: { id:
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [match, userSkillIds] = await Promise.all([
+  const [match, application, isVisible, userSkillIds] = await Promise.all([
     prisma.opportunityMatch.findUnique({
       where: { userId_opportunityId: { userId: user.id, opportunityId: opportunity.id } },
     }),
+    prisma.opportunityApplication.findUnique({
+      where: { userId_opportunityId: { userId: user.id, opportunityId: opportunity.id } },
+    }),
+    prisma.opportunity.count({ where: { id: opportunity.id, ...visibleOpportunityWhere() } }).then((n) => n > 0),
     prisma.userSkill
       .findMany({ where: { userId: user.id }, select: { skillId: true } })
       .then((rows) => new Set(rows.map((r) => r.skillId))),
   ]);
+
+  // The same visibility gate the feed and every other public query uses
+  // (Phase 4, Module 5) — but only enforced against discovery: it 404s
+  // for anyone with no existing application on this opportunity,
+  // regardless of who has the direct link, while a user who already
+  // tracked it keeps access with a clear "no longer active" notice below.
+  if (!isVisible && !application) notFound();
 
   return (
     <div className="min-h-dvh bg-sand-50">
@@ -65,7 +78,9 @@ export default async function OpportunityDetailsPage({ params }: { params: { id:
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="badge">{CATEGORY_LABELS[opportunity.category]}</span>
-          <span className="badge border-green-500 text-green-500">Verified</span>
+          <span className={"badge " + (opportunity.verificationStatus === "VERIFIED" ? "border-green-500 text-green-500" : "")}>
+            {VERIFICATION_LABELS[opportunity.verificationStatus]}
+          </span>
         </div>
         <h1 className="mt-2 text-3xl font-bold text-ink">{opportunity.title}</h1>
         <p className="mt-1 text-ink-soft">{opportunity.organization}</p>
@@ -76,6 +91,23 @@ export default async function OpportunityDetailsPage({ params }: { params: { id:
           {" · "}
           {REMOTE_STATUS_LABELS[opportunity.remoteStatus]}
         </p>
+
+        <div className="mt-4">
+          <SaveButton
+            opportunityId={opportunity.id}
+            initialApplication={application ? { id: application.id, status: application.status } : null}
+          />
+        </div>
+
+        {!isVisible && (
+          <div className="card mt-4 border-orange-400 bg-orange-50">
+            <p className="text-sm text-orange-700">
+              This opportunity is no longer active — it may have expired or been pulled since you
+              tracked it. You can still see what you saved and update your tracker below, but
+              double-check before applying.
+            </p>
+          </div>
+        )}
 
         {match ? (
           <div className="card mt-6 border-green-500/30 bg-green-50">

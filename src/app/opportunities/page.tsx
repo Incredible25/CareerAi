@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import type { ApplicationStatus } from "@prisma/client";
 import { getCurrentUser } from "@/lib/session";
 import { isOnboardingComplete } from "@/lib/onboarding";
 import { generateOpportunityMatches, getOpportunityMatches } from "@/lib/opportunities/generate";
@@ -10,6 +12,7 @@ import { formatDeadline, daysUntil } from "@/lib/opportunities/format";
 import { AppHeader } from "@/components/app-header";
 import { RefreshOpportunityMatchesButton } from "@/components/opportunities/refresh-opportunity-matches-button";
 import { OpportunityMatchBreakdownDetails } from "@/components/opportunities/match-breakdown";
+import { SaveButton } from "@/components/opportunities/save-button";
 
 export const metadata: Metadata = { title: "Opportunities for you" };
 
@@ -27,6 +30,12 @@ export default async function OpportunitiesPage() {
   // feedback, not correctness — the page is already fresh on every load.
   await generateOpportunityMatches(user.id);
   const matches = await getOpportunityMatches(user.id);
+
+  const applications = await prisma.opportunityApplication.findMany({
+    where: { userId: user.id, opportunityId: { in: matches.map((m) => m.opportunityId) } },
+    select: { id: true, opportunityId: true, status: true },
+  });
+  const applicationByOpportunityId = new Map(applications.map((a) => [a.opportunityId, a]));
 
   const topFive = matches.slice(0, 5);
   const rest = matches.slice(5);
@@ -58,7 +67,11 @@ export default async function OpportunitiesPage() {
           <>
             <div className="mt-8 space-y-4">
               {topFive.map((match) => (
-                <OpportunityCard key={match.id} match={match} />
+                <OpportunityCard
+                  key={match.id}
+                  match={match}
+                  application={applicationByOpportunityId.get(match.opportunityId) ?? null}
+                />
               ))}
             </div>
 
@@ -69,7 +82,11 @@ export default async function OpportunitiesPage() {
                 </summary>
                 <div className="mt-4 space-y-3">
                   {rest.map((match) => (
-                    <OpportunityCard key={match.id} match={match} />
+                    <OpportunityCard
+                      key={match.id}
+                      match={match}
+                      application={applicationByOpportunityId.get(match.opportunityId) ?? null}
+                    />
                   ))}
                 </div>
               </details>
@@ -82,8 +99,9 @@ export default async function OpportunitiesPage() {
 }
 
 type MatchWithOpportunity = Awaited<ReturnType<typeof getOpportunityMatches>>[number];
+type ApplicationSummary = { id: string; status: ApplicationStatus } | null;
 
-function OpportunityCard({ match }: { match: MatchWithOpportunity }) {
+function OpportunityCard({ match, application }: { match: MatchWithOpportunity; application: ApplicationSummary }) {
   const opp = match.opportunity;
   const remaining = daysUntil(opp.applicationDeadline);
 
@@ -129,10 +147,11 @@ function OpportunityCard({ match }: { match: MatchWithOpportunity }) {
 
       <OpportunityMatchBreakdownDetails breakdown={match.breakdown} />
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap gap-2">
         <Link href={`/opportunities/${opp.id}`} className="btn-secondary !px-4 !py-2 text-sm">
           View details
         </Link>
+        <SaveButton opportunityId={opp.id} initialApplication={application} />
       </div>
     </div>
   );

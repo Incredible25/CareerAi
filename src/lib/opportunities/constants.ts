@@ -1,4 +1,5 @@
 import type {
+  ApplicationStatus,
   EducationLevel,
   ExperienceRequirement,
   OpportunityCategory,
@@ -85,6 +86,16 @@ export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   OPEN: "Open",
   REVIEWED: "Reviewed",
   DISMISSED: "Dismissed",
+};
+
+export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
+  SAVED: "Saved",
+  PLANNING_TO_APPLY: "Planning to apply",
+  APPLIED: "Applied",
+  INTERVIEW_SELECTION: "Interview / selection",
+  ACCEPTED: "Accepted",
+  REJECTED: "Not selected",
+  WITHDRAWN: "Withdrawn",
 };
 
 export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
