@@ -17,6 +17,7 @@ import {
 import { AppHeader } from "@/components/app-header";
 import { OpportunityMatchBreakdownDetails } from "@/components/opportunities/match-breakdown";
 import { SaveButton } from "@/components/opportunities/save-button";
+import { ReportButton } from "@/components/opportunities/report-button";
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const opportunity = await prisma.opportunity.findUnique({ where: { id: params.id } });
@@ -47,7 +48,7 @@ export default async function OpportunityDetailsPage({ params }: { params: { id:
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [match, application, isVisible, userSkillIds] = await Promise.all([
+  const [match, application, isVisible, userSkillIds, openReport] = await Promise.all([
     prisma.opportunityMatch.findUnique({
       where: { userId_opportunityId: { userId: user.id, opportunityId: opportunity.id } },
     }),
@@ -58,6 +59,9 @@ export default async function OpportunityDetailsPage({ params }: { params: { id:
     prisma.userSkill
       .findMany({ where: { userId: user.id }, select: { skillId: true } })
       .then((rows) => new Set(rows.map((r) => r.skillId))),
+    prisma.opportunityReport.findFirst({
+      where: { userId: user.id, opportunityId: opportunity.id, status: "OPEN" },
+    }),
   ]);
 
   // The same visibility gate the feed and every other public query uses
@@ -230,6 +234,10 @@ export default async function OpportunityDetailsPage({ params }: { params: { id:
             Opens the organization&apos;s own application page. 3Doors never submits applications
             on your behalf.
           </p>
+        </div>
+
+        <div className="mt-4">
+          <ReportButton opportunityId={opportunity.id} initialReported={!!openReport} />
         </div>
       </main>
     </div>
