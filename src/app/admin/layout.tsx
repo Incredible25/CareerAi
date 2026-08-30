@@ -8,6 +8,7 @@ const ADMIN_NAV = [
   { href: "/admin/opportunities", label: "Opportunities" },
   { href: "/admin/sources", label: "Sources" },
   { href: "/admin/reports", label: "Reports" },
+  { href: "/admin/feedback", label: "Feedback" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
