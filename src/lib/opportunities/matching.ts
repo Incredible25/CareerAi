@@ -142,10 +142,13 @@ function checkEligibility(profile: OpportunityUserProfileInput, opportunity: Opp
   const ceilings: number[] = [];
 
   const educationOk = meetsEducationLevel(profile.educationLevel, opportunity.minEducationLevel);
+  // meetsEducationLevel only ever returns false when both sides are
+  // present and rankable — so the non-null assertions below just name
+  // that invariant, they don't add a new assumption.
   if (educationOk === false) {
     flags.push(
-      `Requires ${EDUCATION_LEVEL_LABELS[opportunity.minEducationLevel as string]} — your profile shows ${
-        EDUCATION_LEVEL_LABELS[profile.educationLevel as string] ?? "no education level set"
+      `Requires ${EDUCATION_LEVEL_LABELS[opportunity.minEducationLevel!]} — your profile shows ${
+        EDUCATION_LEVEL_LABELS[profile.educationLevel!]
       }.`
     );
     ceilings.push(40);

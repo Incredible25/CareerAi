@@ -1,4 +1,5 @@
 import type {
+  EducationLevel,
   ExperienceRequirement,
   OpportunityCategory,
   OpportunityStatus,
@@ -86,7 +87,7 @@ export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   DISMISSED: "Dismissed",
 };
 
-export const EDUCATION_LEVEL_LABELS: Record<string, string> = {
+export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
   SECONDARY: "Secondary school",
   UNIVERSITY: "University",
   GRADUATE: "Graduate / postgraduate",
