@@ -69,7 +69,13 @@ export function SkillsStep({
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg2 border border-sand-200 px-3.5 py-2.5"
               >
                 <span className="text-sm text-ink">{skill.name}</span>
-                <div className="flex gap-1">
+                {/* Phase 5, Module 8: without flex-wrap + a full-width mobile
+                    default, 4 pill buttons overflowed the smallest common
+                    phone width (320px) — "Advanced" was cut off and only
+                    reachable by discovering horizontal scroll, across all
+                    74 skills. Wrapping to a 2x2 grid on narrow screens
+                    keeps every option on-screen and tappable. */}
+                <div className="flex w-full flex-wrap gap-1.5 sm:w-auto">
                   {LEVELS.map((lvl) => (
                     <button
                       type="button"

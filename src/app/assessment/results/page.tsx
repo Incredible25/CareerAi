@@ -76,9 +76,8 @@ export default async function AssessmentResultsPage() {
         <div className="card mt-8 border-navy-500/20 bg-navy-50">
           <h2 className="font-display text-base font-bold text-ink">What happens next</h2>
           <p className="mt-1.5 text-sm text-ink-soft">
-            Your ranked career matches, with a transparent fit score and reasoning for each one,
-            are generated from this profile in the next part of 3Doors — coming shortly as the
-            career recommendation engine ships.
+            Your ranked career matches are ready now — ranked by fit, with a transparent score
+            and the specific reasons behind it for each one.
           </p>
         </div>
 
@@ -86,8 +85,8 @@ export default async function AssessmentResultsPage() {
           <Link href="/assessment?retake=1" className="text-sm font-medium text-ink-soft hover:text-ink">
             Retake the assessment
           </Link>
-          <Link href="/dashboard" className="btn-primary">
-            Go to my dashboard
+          <Link href="/matches" className="btn-primary">
+            See my career matches
           </Link>
         </div>
       </main>

@@ -30,9 +30,15 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:3000",
     trace: "retain-on-failure",
-    ...(process.env.PLAYWRIGHT_CHROMIUM_PATH
-      ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } }
-      : {}),
+    launchOptions: {
+      // Phase 5, Module 8: mobile-emulation device presets (isMobile:
+      // true, e.g. devices["iPhone SE"]) hit Chromium's zygote sandbox
+      // restriction when the test runner itself is root (this sandbox,
+      // and some CI containers) — --no-sandbox is the standard, safe fix
+      // for a test-runner Chromium in a containerized environment.
+      args: ["--no-sandbox"],
+      ...(process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {}),
+    },
   },
   projects: [
     {
