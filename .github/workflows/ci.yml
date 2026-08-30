@@ -39,3 +39,7 @@ jobs:
       - run: npm run prisma:seed-all
       - run: npm run eval:recommendations
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          ANTHROPIC_API_KEY: ""
