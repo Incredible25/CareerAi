@@ -98,9 +98,14 @@ export default async function CareerPlanPage({ params }: { params: { slug: strin
             ) : (
               <ul className="mt-2 space-y-1 text-sm text-ink-soft">
                 {gaps.map((g) => (
-                  <li key={g.skillId}>
-                    {g.skillName}
-                    <span className="text-ink-faint"> — aim for {LEVEL_LABELS[g.requiredLevel]}</span>
+                  <li key={g.skillId} className="flex items-center gap-1.5">
+                    <span>
+                      {g.skillName}
+                      <span className="text-ink-faint"> — aim for {LEVEL_LABELS[g.requiredLevel]}</span>
+                    </span>
+                    {g.isQuickWin && (
+                      <span className="badge whitespace-nowrap border-green-500 text-green-500">Quick win</span>
+                    )}
                   </li>
                 ))}
               </ul>

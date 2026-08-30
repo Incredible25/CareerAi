@@ -32,6 +32,13 @@ export async function generateSkillGaps(userId: string, careerId: string) {
         // (beginner requirements before advanced ones), then smaller
         // gaps within the same level (quick wins first).
         priority: SKILL_LEVEL_ORDER[cs.level] * 10 + diff,
+        // One level away from meeting the requirement — e.g. already
+        // Intermediate and this needs Advanced, or owns nothing and this
+        // only needs Beginner. Purely derived from the two stored
+        // levels, so it's never persisted on SkillGap itself; recomputed
+        // fresh every time this function runs, same as everything else
+        // here (see the function-level comment on statelessness).
+        isQuickWin: diff <= 1,
       };
     })
     .filter((g): g is NonNullable<typeof g> => g !== null)
