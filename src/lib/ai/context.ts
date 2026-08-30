@@ -10,32 +10,57 @@ Rules you must follow:
 - Never state or imply guaranteed income or employment outcomes.
 - Avoid absolute claims like "you should become X." Prefer "X could be a strong fit because..." and mention at least one alternative when recommending a direction.
 - Ground answers in the user's own profile below when relevant, but don't just repeat it back — actually help.
-- Keep answers concise, concrete, and actionable. Prefer a short list of next steps over a long essay.`;
+- Keep answers concise, concrete, and actionable. Prefer a short list of next steps over a long essay.
+- The career/side-income fit scores, opportunity match scores, and eligibility notes below are all calculated by deterministic rules, not by you — reference them, don't recompute them, and never restate any of them as a probability of being hired or accepted. They measure relevance, nothing more.
+- You may reference the user's own real saved/applied opportunities and portfolio projects listed below. Never invent a new one, and never imply an application was submitted unless it's explicitly listed as such.`;
 
 export async function buildAssistantContext(userId: string): Promise<string> {
-  const [profile, education, userSkills, userInterests, careerMatches, roadmaps, sideIncomeMatches] =
-    await Promise.all([
-      prisma.profile.findUnique({ where: { userId } }),
-      prisma.education.findFirst({ where: { userId, isCurrent: true } }),
-      prisma.userSkill.findMany({ where: { userId }, include: { skill: true }, take: 15 }),
-      prisma.userInterest.findMany({ where: { userId }, include: { interest: true } }),
-      prisma.careerMatch.findMany({
-        where: { userId },
-        include: { career: true },
-        orderBy: [{ generatedAt: "desc" }, { rank: "asc" }],
-        take: 5,
-      }),
-      prisma.roadmap.findMany({
-        where: { userId },
-        include: { career: true, tasks: { where: { status: { not: "DONE" } }, orderBy: { order: "asc" }, take: 3 } },
-      }),
-      prisma.sideIncomeMatch.findMany({
-        where: { userId },
-        include: { sideOpportunity: true },
-        orderBy: { rank: "asc" },
-        take: 3,
-      }),
-    ]);
+  const [
+    profile,
+    education,
+    userSkills,
+    userInterests,
+    careerMatches,
+    roadmaps,
+    sideIncomeMatches,
+    portfolioProjects,
+    opportunityMatches,
+    opportunityApplications,
+  ] = await Promise.all([
+    prisma.profile.findUnique({ where: { userId } }),
+    prisma.education.findFirst({ where: { userId, isCurrent: true } }),
+    prisma.userSkill.findMany({ where: { userId }, include: { skill: true }, take: 15 }),
+    prisma.userInterest.findMany({ where: { userId }, include: { interest: true } }),
+    prisma.careerMatch.findMany({
+      where: { userId },
+      include: { career: true },
+      orderBy: [{ generatedAt: "desc" }, { rank: "asc" }],
+      take: 5,
+    }),
+    prisma.roadmap.findMany({
+      where: { userId },
+      include: { career: true, tasks: { orderBy: { order: "asc" } } },
+    }),
+    prisma.sideIncomeMatch.findMany({
+      where: { userId },
+      include: { sideOpportunity: true },
+      orderBy: { rank: "asc" },
+      take: 3,
+    }),
+    prisma.portfolioProject.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 5 }),
+    prisma.opportunityMatch.findMany({
+      where: { userId },
+      include: { opportunity: true },
+      orderBy: { rank: "asc" },
+      take: 3,
+    }),
+    prisma.opportunityApplication.findMany({
+      where: { userId },
+      include: { opportunity: { select: { title: true, organization: true } } },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+    }),
+  ]);
 
   const lines: string[] = [];
 
@@ -58,15 +83,42 @@ export async function buildAssistantContext(userId: string): Promise<string> {
     );
   }
   for (const roadmap of roadmaps) {
-    if (roadmap.tasks.length > 0) {
-      lines.push(
-        `Next steps on their ${roadmap.career.name} roadmap: ${roadmap.tasks.map((t) => t.title).join("; ")}.`
-      );
-    }
+    const done = roadmap.tasks.filter((t) => t.status === "DONE");
+    const inProgress = roadmap.tasks.filter((t) => t.status === "IN_PROGRESS");
+    const pending = roadmap.tasks.filter((t) => t.status === "PENDING");
+    lines.push(
+      `${roadmap.career.name} roadmap: ${done.length} of ${roadmap.tasks.length} tasks done.` +
+        (inProgress.length > 0 ? ` Currently working on: ${inProgress.map((t) => t.title).join("; ")}.` : "") +
+        (pending.length > 0 ? ` Not started yet: ${pending.slice(0, 3).map((t) => t.title).join("; ")}.` : "")
+    );
   }
   if (sideIncomeMatches.length > 0) {
     lines.push(
       `Top side-income matches: ${sideIncomeMatches.map((m) => `${m.sideOpportunity.name} (${m.fitScore}% fit)`).join(", ")}.`
+    );
+  }
+  if (portfolioProjects.length > 0) {
+    lines.push(
+      `Portfolio projects: ${portfolioProjects
+        .map((p) => `${p.title} (${p.status.toLowerCase().replace("_", " ")})`)
+        .join(", ")}.`
+    );
+  }
+  if (opportunityMatches.length > 0) {
+    lines.push(
+      `Top verified opportunity matches: ${opportunityMatches
+        .map((m) => {
+          const flagNote = m.eligibilityFlags.length > 0 ? `, ${m.eligibilityFlags.length} eligibility gap${m.eligibilityFlags.length === 1 ? "" : "s"}` : "";
+          return `"${m.opportunity.title}" at ${m.opportunity.organization} (${m.matchScore}% relevance${flagNote})`;
+        })
+        .join("; ")}.`
+    );
+  }
+  if (opportunityApplications.length > 0) {
+    lines.push(
+      `Opportunities they've saved or applied to: ${opportunityApplications
+        .map((a) => `"${a.opportunity.title}" at ${a.opportunity.organization} — ${a.status.toLowerCase().replace(/_/g, " ")}`)
+        .join("; ")}.`
     );
   }
 
