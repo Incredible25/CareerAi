@@ -8,6 +8,9 @@ import {
 } from "@/lib/opportunities/constants";
 import type { Prisma } from "@prisma/client";
 import { FilterSelect } from "@/components/admin/filter-select";
+import { SweepExpiredButton } from "@/components/admin/sweep-expired-button";
+import { formatDeadline, daysUntil } from "@/lib/opportunities/format";
+import { isPastDeadline } from "@/lib/opportunities/visibility";
 
 export const metadata: Metadata = { title: "Opportunities · Admin" };
 
@@ -36,9 +39,12 @@ export default async function AdminOpportunitiesPage({ searchParams }: { searchP
           <h1 className="text-2xl font-bold text-ink">Opportunities</h1>
           <p className="mt-1 text-sm text-ink-soft">{opportunities.length} matching current filters</p>
         </div>
-        <Link href="/admin/opportunities/new" className="btn-primary !px-4 !py-2 text-sm">
-          Add opportunity
-        </Link>
+        <div className="flex items-start gap-3">
+          <SweepExpiredButton />
+          <Link href="/admin/opportunities/new" className="btn-primary !px-4 !py-2 text-sm">
+            Add opportunity
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
@@ -60,23 +66,38 @@ export default async function AdminOpportunitiesPage({ searchParams }: { searchP
 
       <div className="mt-6 space-y-2">
         {opportunities.length === 0 && <p className="text-sm text-ink-soft">No opportunities match these filters.</p>}
-        {opportunities.map((opp) => (
-          <Link key={opp.id} href={`/admin/opportunities/${opp.id}`} className="card flex items-center justify-between gap-4 hover:border-green-500/50">
-            <div>
-              <p className="font-display text-sm font-bold text-ink">{opp.title}</p>
-              <p className="text-xs text-ink-faint">{opp.organization} · {CATEGORY_LABELS[opp.category]} · via {opp.source.name}</p>
-            </div>
-            <div className="flex flex-none items-center gap-2">
-              {opp._count.reports > 0 && (
-                <span className="badge border-orange-400 text-orange-600">{opp._count.reports} report{opp._count.reports === 1 ? "" : "s"}</span>
-              )}
-              <span className="badge">{OPPORTUNITY_STATUS_LABELS[opp.opportunityStatus]}</span>
-              <span className={"badge " + (opp.verificationStatus === "VERIFIED" ? "border-green-500 text-green-500" : "")}>
-                {VERIFICATION_LABELS[opp.verificationStatus]}
-              </span>
-            </div>
-          </Link>
-        ))}
+        {opportunities.map((opp) => {
+          const overdue = isPastDeadline(opp.applicationDeadline) && opp.opportunityStatus === "ACTIVE";
+          const remaining = daysUntil(opp.applicationDeadline);
+          return (
+            <Link key={opp.id} href={`/admin/opportunities/${opp.id}`} className="card flex items-center justify-between gap-4 hover:border-green-500/50">
+              <div>
+                <p className="font-display text-sm font-bold text-ink">{opp.title}</p>
+                <p className="text-xs text-ink-faint">{opp.organization} · {CATEGORY_LABELS[opp.category]} · via {opp.source.name}</p>
+                <p className="mt-1 text-xs text-ink-faint">
+                  {formatDeadline(opp.applicationDeadline)}
+                  {remaining !== null && remaining >= 0 && remaining <= 14 && opp.opportunityStatus === "ACTIVE" && (
+                    <span className="ml-1.5 font-medium text-orange-600">· {remaining === 0 ? "closes today" : `${remaining}d left`}</span>
+                  )}
+                  {overdue && (
+                    <span className="ml-1.5 font-medium text-orange-600">· deadline passed — already hidden from users</span>
+                  )}
+                </p>
+              </div>
+              <div className="flex flex-none items-center gap-2">
+                {opp._count.reports > 0 && (
+                  <span className="badge border-orange-400 text-orange-600">{opp._count.reports} report{opp._count.reports === 1 ? "" : "s"}</span>
+                )}
+                <span className={"badge " + (overdue ? "border-orange-400 text-orange-600" : "")}>
+                  {OPPORTUNITY_STATUS_LABELS[opp.opportunityStatus]}
+                </span>
+                <span className={"badge " + (opp.verificationStatus === "VERIFIED" ? "border-green-500 text-green-500" : "")}>
+                  {VERIFICATION_LABELS[opp.verificationStatus]}
+                </span>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
