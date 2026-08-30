@@ -4,9 +4,10 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { isOnboardingComplete } from "@/lib/onboarding";
-import { generateCareerMatches } from "@/lib/career-engine/generate";
+import { buildUserProfileInput, generateCareerMatches } from "@/lib/career-engine/generate";
 import { getCareerPlan } from "@/lib/career-engine/plan";
 import { meetsLevel } from "@/lib/career-engine/skill-level";
+import { computeSideIncomeFit } from "@/lib/career-engine/scoring";
 import { AppHeader } from "@/components/app-header";
 import { RoadmapPhases } from "@/components/plan/roadmap-phases";
 
@@ -41,10 +42,37 @@ export default async function CareerPlanPage({ params }: { params: { slug: strin
     });
   }
 
-  const [{ gaps, roadmap }, userSkills] = await Promise.all([
+  const [{ gaps, roadmap }, userSkills, linkedSideOpportunities] = await Promise.all([
     getCareerPlan(user.id, career.id),
     prisma.userSkill.findMany({ where: { userId: user.id }, include: { skill: true } }),
+    prisma.careerSideOpportunity.findMany({
+      where: { careerId: career.id },
+      include: { sideOpportunity: { include: { skills: { include: { skill: true } } } } },
+    }),
   ]);
+
+  // Curated (editorial) links, not a generated match — see
+  // prisma/seed-career-links.ts. The fit score alongside each one *is*
+  // generated, using the same deterministic scoring the full
+  // /side-income catalog uses, just scoped to this career's linked
+  // subset rather than recomputing (and persisting) the whole catalog
+  // on every plan-page view.
+  const linkedSideIncome =
+    linkedSideOpportunities.length > 0
+      ? await (async () => {
+          const profileInput = await buildUserProfileInput(user.id);
+          return linkedSideOpportunities
+            .map((link) => {
+              const opp = link.sideOpportunity;
+              const result = computeSideIncomeFit(profileInput, {
+                id: opp.id,
+                skills: opp.skills.map((s) => ({ skillId: s.skillId, name: s.skill.name, level: s.level })),
+              });
+              return { opportunity: opp, result };
+            })
+            .sort((a, b) => b.result.fitScore - a.result.fitScore);
+        })()
+      : [];
 
   const strengths = career.careerSkills.filter((cs) => {
     const owned = userSkills.find((us) => us.skillId === cs.skillId);
@@ -133,8 +161,26 @@ export default async function CareerPlanPage({ params }: { params: { slug: strin
             See what you could realistically start earning from with the skills you already have —
             it doesn&apos;t need to wait until this roadmap is finished.
           </p>
-          <Link href="/side-income" className="btn-secondary mt-3 inline-flex !px-4 !py-2 text-sm">
-            See side-income options
+
+          {linkedSideIncome.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                Linked to {career.name}
+              </p>
+              {linkedSideIncome.map(({ opportunity, result }) => (
+                <div key={opportunity.id} className="flex items-center justify-between rounded-lg2 border border-navy-500/15 bg-white px-3.5 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-ink">{opportunity.name}</p>
+                    <p className="text-xs text-ink-faint">{opportunity.description}</p>
+                  </div>
+                  <p className="flex-none font-mono text-sm font-bold text-green-500">{result.fitScore}%</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <Link href="/side-income" className="btn-secondary mt-4 inline-flex !px-4 !py-2 text-sm">
+            {linkedSideIncome.length > 0 ? "See all side-income options" : "See side-income options"}
           </Link>
         </div>
       </main>
