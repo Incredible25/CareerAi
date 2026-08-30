@@ -71,10 +71,10 @@ export async function POST(request: Request) {
     }
   }
 
-  await prisma.aiMessage.create({
+  const assistantMessage = await prisma.aiMessage.create({
     data: { conversationId: conversation.id, role: "ASSISTANT", content: replyText },
   });
   await prisma.aiConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } });
 
-  return NextResponse.json({ conversationId: conversation.id, reply: replyText, configured });
+  return NextResponse.json({ conversationId: conversation.id, replyId: assistantMessage.id, reply: replyText, configured });
 }

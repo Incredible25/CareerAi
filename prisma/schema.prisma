@@ -77,6 +77,8 @@ model User {
   createdOpportunities    Opportunity[]            @relation("OpportunityCreatedBy")
   updatedOpportunities    Opportunity[]            @relation("OpportunityUpdatedBy")
 
+  feedback Feedback[]
+
   @@map("users")
 }
 
@@ -823,4 +825,39 @@ model OpportunityReport {
 
   @@index([opportunityId])
   @@map("opportunity_reports")
+}
+
+// =============================================================================
+// PHASE 2, MODULE 10 — Feedback mechanisms
+//
+// One generic, polymorphic table rather than a separate one per feature —
+// "was this useful" is the same shape everywhere it's asked. subjectId
+// points at whatever row subjectType names (an AiMessage, a CareerMatch,
+// ...); there's no DB-level foreign key across that boundary, so every
+// write path is responsible for checking the subject actually belongs to
+// the submitting user before accepting it (see the API route).
+// =============================================================================
+
+enum FeedbackSubjectType {
+  AI_MESSAGE
+  CAREER_MATCH
+}
+
+model Feedback {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectType FeedbackSubjectType
+  subjectId   String
+  helpful     Boolean
+  comment     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One vote per user per thing — resubmitting updates it rather than
+  // piling up duplicates.
+  @@unique([userId, subjectType, subjectId])
+  @@index([subjectType, subjectId])
+  @@map("feedback")
 }
