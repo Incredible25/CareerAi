@@ -35,8 +35,11 @@ Out of code's reach to fix directly: this dev/CI environment uses a single
 `postgres` superuser connection string. **Before a real deployment**,
 provision a least-privilege application DB role (no `CREATEDB`/superuser)
 separate from whatever role runs `prisma migrate deploy`, and confirm the
-connection enforces TLS. Flagged for the Module 9 beta-readiness checklist
-as a deploy-time item, not something a code change here can verify.
+connection enforces TLS. Expanded into a full item-by-item checklist in
+Phase 6 Step 3 (`docs/PHASE_6_PRODUCTION_SECURITY_CHECKLIST.md`), with
+each item marked either verified now (credential hygiene, injection
+surface, logging) or explicitly requiring production access — still a
+deploy-time item, not something a code change here can verify.
 
 ## 4. API security
 
@@ -108,16 +111,17 @@ multiple server instances — acceptable for a single-instance controlled
 beta, a real gap before any horizontally-scaled or serverless production
 deployment (would need a shared store, e.g. Redis).
 
-**A second, newly-discovered limitation from this module's own live
-testing**: `getClientIp()` depends on a reverse proxy actually setting
-`x-forwarded-for`. In this sandbox's direct-to-`next dev` testing, no such
-header is present, so every request falls back to the same `"unknown"`
-key — meaning *all* traffic without a proxy in front shares one register
-rate-limit bucket. This is fine for local dev (nobody's actually being
-blocked from real signups) but **must be verified at actual deploy time**:
-confirm the production reverse proxy/CDN sets `x-forwarded-for` correctly,
-or every real user behind it will share one bucket and legitimate
-registrations could get blocked by unrelated traffic. Flagged for Module 9.
+**A second limitation, found here and closed in Phase 6**: `getClientIp()`
+originally trusted `x-forwarded-for` unconditionally, with no way to tell
+a value a real proxy set from one a client spoofed directly. Phase 6
+Step 4 turned this from a theoretical gap into a confirmed exploit: 11
+consecutive registration requests, each with a distinct spoofed header
+value, all succeeded past the 20-per-15-minutes limit — trivially
+defeating it. **Fixed**: `getClientIp()` now ignores the header entirely
+unless `TRUST_PROXY_HEADERS=true` is explicitly set, which should only
+happen once the production reverse proxy is confirmed to overwrite
+(not forward) a client-supplied value. Full writeup and re-verification:
+`docs/PHASE_6_PRODUCTION_SECURITY_CHECKLIST.md` Step 4 item 1.
 
 ## 10. Database security
 
@@ -158,7 +162,7 @@ future hardening step.
 | `ageRange` | Registration | Yes — derives `isMinor`; feeds `MINOR_AGE_RANGES` check | Necessary, minimal (a range, not a birthdate). |
 | `country` | Registration | Not yet read anywhere beyond storage | Justified despite non-use: the product strategy's Cameroon-first, per-market localization plan (already flagged as a launch blocker in the Module 2 rubric) directly needs this field — it's a near-term, already-documented requirement, not "might be useful someday." Kept. |
 | `city` (optional) | Registration | Not read anywhere beyond storage | Same justification as `country` — hyper-local matching is the named future use, not a hypothetical one. Low sensitivity (self-reported, optional, no more precise than city-level). Kept, but flagged: if the localization work doesn't materialize within a reasonable window, this should be revisited and dropped rather than left collected-forever "just in case." |
-| `isMinor` (derived) | Registration | **No** — computed and stored, read nowhere | See §1/§9 note above: this is the one finding worth taking seriously precisely because of what it's *for*. It's not simple unused data — the schema comment claimed it "gates minor-safeguarding defaults," which was never true. Fixed the misleading comment this module (`prisma/schema.prisma`) so it accurately says nothing reads it yet, rather than implying a safeguard exists. **Recommend resolving before beta**: either wire it into real minor-specific handling (e.g., a stricter data-retention or marketing-consent path) or drop it — leaving it as a silently-inert field with a "safeguarding" name is the worse of the two options. |
+| `isMinor` (derived) | Registration | **Yes, as of Phase 6** | At the time this review was written: computed and stored, read nowhere — a misleading schema comment claimed it "gates minor-safeguarding defaults," which was never true, and was fixed to say so. **Resolved in Phase 6 Step 2B** (`docs/PHASE_6_DECISIONS.md`): now enforced server-side in `POST /api/onboarding` to strip LinkedIn/portfolio URLs for minor accounts regardless of client input, verified live via a direct API bypass attempt. |
 | `Assessment.traitScores` / `AssessmentAnswer.value` | Assessment | Yes — the core matching input | Necessary; already explicitly disclaimed in-app as non-clinical, non-diagnostic. |
 | `Profile.linkedinUrl` / `portfolioUrl` (optional) | Onboarding | Displayed back to the user only | User-supplied, optional, self-describing — fine. |
 | `hasLaptop` / `hasSmartphone` / `internetAccess` | Onboarding | Not read by the matching/roadmap engine (Module 2 finding) — `internetAccess` alone reaches the optional AI assistant's context | Not a privacy risk (low sensitivity), but a *product* gap already routed to a future scoring-engine decision in the Module 2 rubric — repeated here only for completeness, not re-litigated. |

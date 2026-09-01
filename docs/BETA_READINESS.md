@@ -71,17 +71,17 @@ choosing between them for you:
   content. Slower, but avoids the exact trust problem the strategy doc
   is worried about, on the audience most likely to notice it.
 
-### `isMinor` field (Module 6 finding)
+### `isMinor` field (Module 6 finding) — **resolved in Phase 6**
 
-Computed and stored at registration, read nowhere. The schema comment
-used to claim it "gates minor-safeguarding defaults" — it doesn't, and
-that comment is now corrected to say so. If beta testers will include
-anyone under 18 (the product explicitly supports `UNDER_16`/`AGE_16_18`
-age ranges), **decide before beta**: either wire this into real
-minor-specific handling, or consciously accept that today there is none
-beyond what applies to every user equally. Silence on this isn't a safe
-default — it's an unmade decision about how minors' data is actually
-treated.
+Was computed and stored at registration but read nowhere when this
+document was written. **Resolved in Phase 6 Step 2B**
+(`docs/PHASE_6_DECISIONS.md`): LinkedIn/portfolio URLs are now stripped
+server-side for `isMinor` accounts regardless of what a client submits,
+verified live via a direct API bypass attempt, not just hidden in the
+form. Left as historical context rather than deleted, since it's exactly
+the kind of "decide before beta" item Module 9 existed to surface —
+tracking its resolution here shows the process worked, not just the
+outcome.
 
 ---
 
@@ -189,15 +189,21 @@ work, are tested, and degrade gracefully under real failure conditions —
 none of that is aspirational, all of it was verified live against a
 running server across Modules 1–8.
 
-**Two decisions are outstanding, both named above, neither resolved
-unilaterally**: the Cameroon-content timing question, and the `isMinor`
-field. Both are genuine product/policy calls, not engineering ones — this
-document's job is to put them in front of you clearly, not guess.
+**Two decisions were outstanding when this document was written; one is
+now resolved.** The `isMinor` field is resolved as of Phase 6 Step 2B
+(above). The Cameroon-content depth question remains a genuine,
+unresolved product/policy call — see `docs/PHASE_6_PRODUCTION_READINESS.md`
+#3 for the current status.
 
-**Two operational items need a deploy-time check** (DB role
+**Two operational items still need a deploy-time check** (DB role
 least-privilege + TLS, and the reverse proxy's `x-forwarded-for` header)
-that can't be verified from this sandbox — they need the actual
-production environment to confirm.
+that can't be verified from this sandbox. Phase 6 Steps 3-4 went further
+than this document originally did: the `x-forwarded-for` item turned out
+to hide a real, confirmed rate-limit bypass (not just an unverified
+assumption), which is now fixed and re-verified locally — see
+`docs/PHASE_6_PRODUCTION_SECURITY_CHECKLIST.md`. What still requires the
+actual production environment is narrower now than it was here.
 
-Once those four items are addressed, there is no remaining reason found
-across this entire Phase 5 review to hold back a small, controlled beta.
+**Current overall status**: see `docs/PHASE_6_PRODUCTION_READINESS.md`
+for the up-to-date 17-category checklist superseding this section's
+four-item summary.
