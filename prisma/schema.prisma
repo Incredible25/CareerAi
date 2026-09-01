@@ -51,13 +51,16 @@ model User {
   ageRange     AgeRange
   country      String
   city         String?
-  // Derived at registration from ageRange (docs/PRODUCT_STRATEGY.md §13
-  // names this as the intended minor-safeguarding gate). Phase 5 Module 6
-  // audit: as of this comment, nothing in the app actually reads this
-  // field — it does not currently gate any behavior. Flagged for the
-  // beta-readiness review rather than silently left implying a live
-  // safeguard; do not remove without deciding what should read it.
-  isMinor      Boolean  @default(false)
+  // Derived at registration from ageRange (docs/PRODUCT_STRATEGY.md §13:
+  // "any user in a secondary-school age range is flagged"), via
+  // MINOR_AGE_RANGES (src/lib/validation/auth.ts). Phase 6 wired this up:
+  // src/lib/minors.ts now reads it to restrict profile fields that aren't
+  // minimum-necessary for a minor (see that file's doc comment for exact
+  // scope — deliberately narrow). Every real registration always sets
+  // this explicitly; the @default(true) below only matters for a
+  // hypothetical row inserted outside that flow, and defaults to the
+  // more protective assumption rather than the more permissive one.
+  isMinor      Boolean  @default(true)
   role         UserRole @default(USER)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

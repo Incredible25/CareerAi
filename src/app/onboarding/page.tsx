@@ -29,6 +29,7 @@ export default async function OnboardingPage() {
       firstName={user.name.split(" ")[0] ?? user.name}
       skillCatalog={skills}
       interestCatalog={interests}
+      isMinor={user.isMinor}
       initialData={{
         education: education
           ? {

@@ -20,10 +20,18 @@ export type AccessStepValues = {
 export function AccessStep({
   defaultValues,
   submitting,
+  isMinor,
   onSubmit,
 }: {
   defaultValues: AccessStepValues;
   submitting: boolean;
+  // Phase 6, minor-safeguarding (docs/PRODUCT_STRATEGY.md §13 — "profile
+  // fields default to the minimum necessary"): a secondary-school-age
+  // user isn't asked for professional-networking links at all. The API
+  // route enforces this regardless of what's submitted
+  // (applyMinorFieldRestrictions) — hiding the fields here is about
+  // giving an honest form, not the actual enforcement.
+  isMinor: boolean;
   onSubmit: (data: AccessStepValues) => void;
 }) {
   const [hasLaptop, setHasLaptop] = useState(defaultValues.hasLaptop);
@@ -37,8 +45,8 @@ export function AccessStep({
       hasSmartphone,
       internetAccess: String(form.get("internetAccess") ?? "INTERMITTENT"),
       languages: String(form.get("languages") ?? ""),
-      linkedinUrl: String(form.get("linkedinUrl") ?? ""),
-      portfolioUrl: String(form.get("portfolioUrl") ?? ""),
+      linkedinUrl: isMinor ? "" : String(form.get("linkedinUrl") ?? ""),
+      portfolioUrl: isMinor ? "" : String(form.get("portfolioUrl") ?? ""),
     });
   }
 
@@ -102,34 +110,36 @@ export function AccessStep({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="field-label" htmlFor="linkedinUrl">
-            LinkedIn <span className="text-ink-faint">(optional)</span>
-          </label>
-          <input
-            id="linkedinUrl"
-            name="linkedinUrl"
-            type="url"
-            defaultValue={defaultValues.linkedinUrl}
-            className="field-input"
-            placeholder="https://linkedin.com/in/you"
-          />
+      {!isMinor && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="field-label" htmlFor="linkedinUrl">
+              LinkedIn <span className="text-ink-faint">(optional)</span>
+            </label>
+            <input
+              id="linkedinUrl"
+              name="linkedinUrl"
+              type="url"
+              defaultValue={defaultValues.linkedinUrl}
+              className="field-input"
+              placeholder="https://linkedin.com/in/you"
+            />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="portfolioUrl">
+              Portfolio / website <span className="text-ink-faint">(optional)</span>
+            </label>
+            <input
+              id="portfolioUrl"
+              name="portfolioUrl"
+              type="url"
+              defaultValue={defaultValues.portfolioUrl}
+              className="field-input"
+              placeholder="https://..."
+            />
+          </div>
         </div>
-        <div>
-          <label className="field-label" htmlFor="portfolioUrl">
-            Portfolio / website <span className="text-ink-faint">(optional)</span>
-          </label>
-          <input
-            id="portfolioUrl"
-            name="portfolioUrl"
-            type="url"
-            defaultValue={defaultValues.portfolioUrl}
-            className="field-input"
-            placeholder="https://..."
-          />
-        </div>
-      </div>
+      )}
 
       <button type="submit" disabled={submitting} className="btn-primary w-full disabled:opacity-60">
         {submitting ? "Saving…" : "Finish profile"}

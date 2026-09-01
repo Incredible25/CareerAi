@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ONBOARDING_STEPS, stepIndex, type OnboardingStep } from "@/lib/onboarding";
+import { applyMinorFieldRestrictions } from "@/lib/minors";
 import {
   accessStepSchema,
   educationStepSchema,
@@ -123,7 +124,11 @@ export async function POST(request: Request) {
     case "access": {
       const parsed = accessStepSchema.safeParse(body.data);
       if (!parsed.success) return badRequest(parsed.error.issues[0]?.message ?? "Invalid input.");
-      const data = parsed.data;
+      // Phase 6: minor-safeguarding (docs/PRODUCT_STRATEGY.md §13) — strip
+      // professional-networking fields for a minor server-side, not just
+      // hide them in the UI, so a client can't submit around it.
+      const currentUser = await prisma.user.findUnique({ where: { id: userId }, select: { isMinor: true } });
+      const data = applyMinorFieldRestrictions(currentUser?.isMinor ?? true, parsed.data);
 
       await prisma.profile.update({
         where: { userId },

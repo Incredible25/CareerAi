@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { isOnboardingComplete } from "@/lib/onboarding";
 import { generateCareerMatches, getLatestCareerMatches } from "@/lib/career-engine/generate";
+import { formatCameroonDate } from "@/lib/cameroon-time";
 import { prisma } from "@/lib/prisma";
 import { AppHeader } from "@/components/app-header";
 import { RefreshMatchesButton } from "@/components/matches/refresh-matches-button";
@@ -57,7 +58,7 @@ export default async function MatchesPage() {
           take a closer look at the ones that feel right.
         </p>
         <p className="mt-1 text-xs text-ink-faint">
-          Last calculated {lastGenerated.toLocaleDateString()}.
+          Last calculated {formatCameroonDate(lastGenerated)}.
           {isStaleAgainstCatalog && " Our catalog has grown since — recalculate to include everything."}
         </p>
 

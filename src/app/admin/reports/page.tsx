@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { formatCameroonDate } from "@/lib/cameroon-time";
 import { REPORT_REASON_LABELS } from "@/lib/opportunities/constants";
 import { ReportActions } from "@/components/admin/report-actions";
 
@@ -44,7 +45,7 @@ export default async function AdminReportsPage() {
             </div>
             {report.note && <p className="mt-2 text-sm text-ink-soft">&ldquo;{report.note}&rdquo;</p>}
             <p className="mt-2 text-xs text-ink-faint">
-              Reported by {report.user.name} ({report.user.email}) · {report.createdAt.toLocaleDateString()}
+              Reported by {report.user.name} ({report.user.email}) · {formatCameroonDate(report.createdAt)}
             </p>
             <div className="mt-3">
               <ReportActions reportId={report.id} />

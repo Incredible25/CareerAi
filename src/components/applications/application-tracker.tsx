@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ApplicationStatus } from "@prisma/client";
 import { APPLICATION_STATUS_LABELS } from "@/lib/opportunities/constants";
+import { formatCameroonDate } from "@/lib/cameroon-time";
 
 type TrackedApplication = {
   id: string;
@@ -96,7 +97,7 @@ export function ApplicationTracker({ initialApplications }: { initialApplication
               )}
               {application.appliedAt && (
                 <p className="mt-0.5 text-xs text-ink-faint">
-                  Applied {new Date(application.appliedAt).toLocaleDateString()}
+                  Applied {formatCameroonDate(new Date(application.appliedAt))}
                 </p>
               )}
             </div>

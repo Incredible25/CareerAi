@@ -27,12 +27,14 @@ export function OnboardingFlow({
   skillCatalog,
   interestCatalog,
   initialData,
+  isMinor,
 }: {
   startStepIndex: number;
   firstName: string;
   skillCatalog: CatalogItem[];
   interestCatalog: CatalogItem[];
   initialData: InitialData;
+  isMinor: boolean;
 }) {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(
@@ -131,6 +133,7 @@ export function OnboardingFlow({
             <AccessStep
               defaultValues={initialData.access}
               submitting={submitting}
+              isMinor={isMinor}
               onSubmit={(data: AccessStepValues) => submitStep(data)}
             />
           )}

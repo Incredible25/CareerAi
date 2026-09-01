@@ -6,6 +6,7 @@ import { OpportunityForm } from "@/components/admin/opportunity-form";
 import { VerificationActions } from "@/components/admin/verification-actions";
 import { VERIFICATION_LABELS, OPPORTUNITY_STATUS_LABELS, REPORT_REASON_LABELS } from "@/lib/opportunities/constants";
 import { formatDeadline } from "@/lib/opportunities/format";
+import { formatCameroonDate } from "@/lib/cameroon-time";
 import { isPastDeadline, visibleOpportunityWhere } from "@/lib/opportunities/visibility";
 
 export const metadata: Metadata = { title: "Edit opportunity · Admin" };
@@ -86,7 +87,7 @@ export default async function EditOpportunityPage({ params }: { params: { id: st
               <li key={r.id}>
                 <span className="font-medium text-ink">{REPORT_REASON_LABELS[r.reason]}</span>
                 {r.note && <> — {r.note}</>}
-                <span className="text-ink-faint"> · {r.user.name}, {r.createdAt.toLocaleDateString()}</span>
+                <span className="text-ink-faint"> · {r.user.name}, {formatCameroonDate(r.createdAt)}</span>
               </li>
             ))}
           </ul>
