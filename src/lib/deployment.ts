@@ -51,3 +51,15 @@ export function isBetaAccessEnabled(): boolean {
 export function logError(context: string, err: unknown): void {
   console.error(`[${getDeploymentStage()}] ${context}:`, err);
 }
+
+/**
+ * Companion to logError for the non-error side of Step 6's beta metrics
+ * that have no natural home in a DB row (recommendation-generation
+ * duration, AI call duration) — tags stage the same way, so existing
+ * logs are at least grep-able by stage and operation name. Not a metrics
+ * store; see docs/PHASE_7_BETA_METRICS.md for what's DB-queryable versus
+ * log-only and why.
+ */
+export function logTiming(context: string, durationMs: number): void {
+  console.log(`[${getDeploymentStage()}] ${context}: ${durationMs}ms`);
+}

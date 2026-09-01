@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { logError, logTiming } from "@/lib/deployment";
 import { CAREER_ENGINE_VERSION, computeCareerFit, computeSideIncomeFit } from "@/lib/career-engine/scoring";
 import type {
   CareerForScoring,
@@ -55,59 +56,73 @@ export async function generateCareerMatches(userId: string): Promise<string | nu
   });
   if (!assessment) return null;
 
-  const [profileInput, careers] = await Promise.all([
-    buildUserProfileInput(userId),
-    prisma.careerProfile.findMany({ include: { careerSkills: { include: { skill: true } } } }),
-  ]);
+  // Phase 7 Step 6 beta metrics (docs/PHASE_7_BETA_METRICS.md): recommendation
+  // generation has no failure/duration row anywhere in the schema — a
+  // thrown error here just propagates to the caller with nothing durable
+  // recorded. These two lines make both observable in logs without adding
+  // a metrics table, which would be more infrastructure than a 15-25
+  // person beta needs. Behavior (return value, thrown errors) is
+  // unchanged — this only adds observability around the existing call.
+  const startedAt = Date.now();
+  try {
+    const [profileInput, careers] = await Promise.all([
+      buildUserProfileInput(userId),
+      prisma.careerProfile.findMany({ include: { careerSkills: { include: { skill: true } } } }),
+    ]);
 
-  const scored = careers.map((career) => {
-    const forScoring: CareerForScoring = {
-      id: career.id,
-      name: career.name,
-      industry: career.industry,
-      relevantInterests: career.relevantInterests,
-      relevantSubjects: career.relevantSubjects,
-      traitWeights: career.traitWeights as Partial<Record<TraitKey, number>>,
-      environments: career.environments,
-      careerSkills: career.careerSkills.map((cs) => ({
-        skillId: cs.skillId,
-        name: cs.skill.name,
-        level: cs.level,
-      })),
-    };
-    return { career, result: computeCareerFit(profileInput, forScoring) };
-  });
+    const scored = careers.map((career) => {
+      const forScoring: CareerForScoring = {
+        id: career.id,
+        name: career.name,
+        industry: career.industry,
+        relevantInterests: career.relevantInterests,
+        relevantSubjects: career.relevantSubjects,
+        traitWeights: career.traitWeights as Partial<Record<TraitKey, number>>,
+        environments: career.environments,
+        careerSkills: career.careerSkills.map((cs) => ({
+          skillId: cs.skillId,
+          name: cs.skill.name,
+          level: cs.level,
+        })),
+      };
+      return { career, result: computeCareerFit(profileInput, forScoring) };
+    });
 
-  scored.sort((a, b) => b.result.fitScore - a.result.fitScore);
+    scored.sort((a, b) => b.result.fitScore - a.result.fitScore);
 
-  await Promise.all(
-    scored.map(({ career, result }, index) =>
-      prisma.careerMatch.upsert({
-        where: {
-          userId_careerId_assessmentId: { userId, careerId: career.id, assessmentId: assessment.id },
-        },
-        update: {
-          fitScore: result.fitScore,
-          breakdown: result.breakdown,
-          reasons: result.reasons,
-          rank: index + 1,
-          engineVersion: CAREER_ENGINE_VERSION,
-        },
-        create: {
-          userId,
-          careerId: career.id,
-          assessmentId: assessment.id,
-          fitScore: result.fitScore,
-          breakdown: result.breakdown,
-          reasons: result.reasons,
-          rank: index + 1,
-          engineVersion: CAREER_ENGINE_VERSION,
-        },
-      })
-    )
-  );
+    await Promise.all(
+      scored.map(({ career, result }, index) =>
+        prisma.careerMatch.upsert({
+          where: {
+            userId_careerId_assessmentId: { userId, careerId: career.id, assessmentId: assessment.id },
+          },
+          update: {
+            fitScore: result.fitScore,
+            breakdown: result.breakdown,
+            reasons: result.reasons,
+            rank: index + 1,
+            engineVersion: CAREER_ENGINE_VERSION,
+          },
+          create: {
+            userId,
+            careerId: career.id,
+            assessmentId: assessment.id,
+            fitScore: result.fitScore,
+            breakdown: result.breakdown,
+            reasons: result.reasons,
+            rank: index + 1,
+            engineVersion: CAREER_ENGINE_VERSION,
+          },
+        })
+      )
+    );
 
-  return assessment.id;
+    logTiming("recommendation generation", Date.now() - startedAt);
+    return assessment.id;
+  } catch (err) {
+    logError("recommendation generation failed", err);
+    throw err;
+  }
 }
 
 export async function getLatestCareerMatches(userId: string) {
