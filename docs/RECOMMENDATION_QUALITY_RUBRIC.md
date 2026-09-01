@@ -208,3 +208,38 @@ real and both already have an owner: Cameroon-context content is an
 explicit, named launch blocker for Module 9 to decide on; the unused
 accessibility fields are a new finding that needs a scoping decision before
 any engine change, not a Module 2 fix.
+
+---
+
+## Phase 6 Step 6 — re-validation
+
+Re-ran `npm run eval:recommendations` fresh against the current codebase
+(no scoring-engine code changed since Module 2 — Phase 6 touched only date
+formatting, `isMinor`, and rate-limiting) to confirm nothing regressed, and
+checked specifically for the failure modes named in the Phase 6 brief that
+the original 12-dimension pass didn't separately call out.
+
+**Fresh run: 27/27 automated sanity checks pass**, and the top-match
+scores/reasons for every one of the 10 fictional profiles are byte-for-byte
+consistent with what's cited above (Emmanuel → Software Development 73%,
+Grace → Nursing & Community Health 61%, etc.) — confirming dimensions 1-9
+and 12 still hold, not re-asserting them from memory.
+
+| Failure mode | Checked | Result |
+|---|---|---|
+| Generic recommendations | Dimension 1/2 (Relevance/Personalization) | Still Pass — see above, re-confirmed this run. |
+| Contradictory recommendations | N/A — structurally impossible: each career is scored once from a `findMany()` with no fan-out join, so the same career id cannot appear twice in one user's ranked list, and the ranking is a total order (no career can simultaneously outrank and be outranked by another in the same run — confirmed by the "identical input → identical output" consistency test). | Pass |
+| Unsupported / weak-evidence recommendations | Every `reasons[]` string is generated only from an actual matched field (interest/skill/trait/subject/goal overlap that exists in the data) — grepped `scoring.ts`: no reason string is emitted unconditionally. Fabrice's aspirational-gap profile (dimension 7) is the sharpest test of this: the system still surfaces Software Development but reports the gap honestly rather than inventing supporting evidence that isn't there. | Pass |
+| Overconfident / absolute language | Grepped all user-facing copy in `src/app` and `src/components` for absolute claims ("guarantee," "definitely," "certainly," "perfect fit," "will get you," "promise") — none found. | Pass |
+| Inappropriate recommendations | Grepped the seeded career catalog for age-inappropriate categories (alcohol, gambling, tobacco, adult content, nightlife) — none found; all 32 careers are the same professional/vocational set already enumerated in dimension 9. Separately: the recommendation engine has no `isMinor`-aware branching at all (`UserProfileInput` carries no such field, confirmed in `docs/PHASE_6_DECISIONS.md`), so there is no code path that could serve a minor a *different*, unreviewed set of careers — every user sees recommendations drawn from the same reviewed catalog. | Pass |
+| Unexplained recommendations | Every scored career in every eval run carries at least one `reasons[]` string (structurally guaranteed: `scoring.ts:207-232` only omits a reason category when there's genuinely no signal to name, never emits an empty `reasons[]` for a career that made the top 5). | Pass |
+| Duplicate recommendations | See "Contradictory," above — same structural guarantee. | Pass |
+| Mismatched recommendations (career doesn't fit the stated signal) | This is dimension 1/2/9's territory (industry-alignment checks in the eval harness itself: `entrepreneurship-oriented`→Business, `creative-careers`→Creative & Media, `technical-stem`→Technology, `social-community`→Health, all re-confirmed passing this run). | Pass |
+| Misleading AI language | Grepped for "AI-generated"/"AI-powered"/"AI-assisted"/"AI-driven" across `src/app` and `src/components`: the one hit (`match-breakdown.tsx:45`) explicitly *disclaims* AI involvement in the deterministic score ("Nothing here is AI-generated") — this is the Module 3 fix holding, not a new instance of the problem it fixed. No page claims AI authorship of a score or roadmap that is, in fact, deterministic. | Pass |
+
+**No new defect found.** The two open items from the original 12-dimension
+pass (Cameroon/African context — dimension 10; unused accessibility
+fields — dimension 11) remain open with the same owners named above; Phase
+6 did not change either, and neither is a candidate for a quiet code fix
+per the phase's own instruction not to touch the algorithm without a
+concrete, proven inconsistency.
