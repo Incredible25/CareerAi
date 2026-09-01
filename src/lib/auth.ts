@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { isRateLimited } from "@/lib/rate-limit";
+import { isBetaAccessEnabled, isBetaStage } from "@/lib/deployment";
 
 /**
  * Credentials-based auth via NextAuth: NextAuth owns session cookie
@@ -48,6 +49,14 @@ export const authOptions: AuthOptions = {
           user.passwordHash
         );
         if (!passwordMatches) return null;
+
+        // Phase 7 beta kill switch (docs/PHASE_7_BETA_CONFIGURATION.md):
+        // only ever engages for a beta-cohort account on a beta-stage
+        // deployment, and only when explicitly disabled — never affects
+        // non-beta users or non-beta deployments. Same generic failure
+        // as a wrong password, for the same reason the rate limiter
+        // above does: never a distinguishable signal.
+        if (isBetaStage() && user.isBetaUser && !isBetaAccessEnabled()) return null;
 
         return {
           id: user.id,

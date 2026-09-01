@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { generateAssistantReply, isAiConfigured } from "@/lib/ai/anthropic";
 import { APPLICATION_ASSISTANT_SYSTEM_PROMPT, buildApplicationAssistantContext } from "@/lib/ai/context";
 import { isRateLimited } from "@/lib/rate-limit";
+import { logError } from "@/lib/deployment";
 
 const NOT_CONFIGURED_MESSAGE =
   "The AI application assistant isn't configured on this deployment yet — an operator needs to add an ANTHROPIC_API_KEY. In the meantime, your match score and eligibility notes above are the real, deterministic facts to work from.";
@@ -48,7 +49,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     });
     return NextResponse.json({ reply, configured: true });
   } catch (err) {
-    console.error("AI application assistant call failed", err);
+    logError("AI application assistant call failed", err);
     return NextResponse.json(
       { error: "Something went wrong reaching the assistant just now — please try again in a moment." },
       { status: 502 }

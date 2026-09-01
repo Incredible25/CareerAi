@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { generateAssistantReply, isAiConfigured } from "@/lib/ai/anthropic";
 import { ASSISTANT_SYSTEM_PROMPT, buildAssistantContext } from "@/lib/ai/context";
 import { isRateLimited } from "@/lib/rate-limit";
+import { logError } from "@/lib/deployment";
 
 const NOT_CONFIGURED_MESSAGE =
   "The AI assistant isn't configured on this deployment yet — an operator needs to add an ANTHROPIC_API_KEY. In the meantime, your career matches, skill gaps, and roadmap are all ready on your dashboard.";
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
         })),
       });
     } catch (err) {
-      console.error("AI assistant call failed", err);
+      logError("AI assistant call failed", err);
       replyText = "Something went wrong reaching the assistant just now — please try again in a moment.";
     }
   }

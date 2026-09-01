@@ -62,6 +62,14 @@ model User {
   // more protective assumption rather than the more permissive one.
   isMinor      Boolean  @default(true)
   role         UserRole @default(USER)
+  // Phase 7 beta configuration (docs/PHASE_7_BETA_CONFIGURATION.md): marks
+  // an account as part of the controlled beta cohort. Never self-serve —
+  // set only via prisma/mark-beta-user.ts by someone with DB access,
+  // mirroring how ADMIN role is granted. Used to (a) scope the admin beta
+  // dashboard's queries to the actual cohort, not all users, and (b) let
+  // BETA_ACCESS_ENABLED=false act as a kill switch in src/lib/auth.ts
+  // without touching non-beta accounts.
+  isBetaUser   Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
