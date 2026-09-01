@@ -871,6 +871,16 @@ enum FeedbackReason {
   DOESNT_MATCH_SUBJECTS
   NOT_ACCESSIBLE
   WANT_MORE_INFO
+  // Phase 7 Step 4 (docs/PHASE_7_BETA_FEEDBACK.md): added to cover the
+  // beta brief's D-I reason set that the Phase 5 set didn't distinguish.
+  // C ("didn't match my profile") and J ("Other") were already covered
+  // by DOESNT_MATCH_INTERESTS/DOESNT_MATCH_SUBJECTS and OTHER above.
+  CONFUSING
+  TOO_GENERIC
+  CONTRADICTORY
+  INAPPROPRIATE
+  INSUFFICIENT_EXPLANATION
+  TECHNICAL_PROBLEM
   OTHER
 }
 

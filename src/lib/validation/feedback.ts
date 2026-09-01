@@ -12,6 +12,12 @@ export const feedbackSchema = z.object({
       "DOESNT_MATCH_SUBJECTS",
       "NOT_ACCESSIBLE",
       "WANT_MORE_INFO",
+      "CONFUSING",
+      "TOO_GENERIC",
+      "CONTRADICTORY",
+      "INAPPROPRIATE",
+      "INSUFFICIENT_EXPLANATION",
+      "TECHNICAL_PROBLEM",
       "OTHER",
     ])
     .nullable()
