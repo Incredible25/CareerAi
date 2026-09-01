@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { computeFeedbackDashboard } from "@/lib/feedback/aggregate";
 import type { CareerFeedbackStat, CareerCount, ReasonCount } from "@/lib/feedback/aggregate";
+import { computeBetaFeedbackPatterns } from "@/lib/feedback/beta-patterns";
+import type { LabeledCount } from "@/lib/feedback/beta-patterns";
 
 export const metadata: Metadata = { title: "Feedback · Admin" };
 
@@ -30,6 +32,40 @@ export default async function AdminFeedbackPage() {
     careerMatchFeedback: feedbackRows,
     matchCareerNames,
     topRankedCareerNames,
+  });
+
+  // Phase 7 Step 10 — beta-cohort-only patterns, layered on the summary
+  // above rather than replacing it. One extra query, scoped to
+  // isBetaUser, joined just far enough to answer the four questions
+  // computeFeedbackDashboard() doesn't: profile-type, age-group, and
+  // device/connectivity patterns, and which negative reports are
+  // critical (INAPPROPRIATE) versus quality.
+  const betaFeedbackRows = await prisma.feedback.findMany({
+    where: { subjectType: "CAREER_MATCH", user: { isBetaUser: true } },
+    select: {
+      helpful: true,
+      reason: true,
+      subjectId: true,
+      user: {
+        select: {
+          ageRange: true,
+          education: { where: { isCurrent: true }, select: { level: true }, take: 1 },
+          profile: { select: { hasLaptop: true, hasSmartphone: true, internetAccess: true } },
+        },
+      },
+    },
+  });
+  const betaPatterns = computeBetaFeedbackPatterns({
+    rows: betaFeedbackRows.map((f) => ({
+      helpful: f.helpful,
+      reason: f.reason,
+      careerName: matchCareerNames.get(f.subjectId) ?? null,
+      ageRange: f.user.ageRange,
+      educationLevel: f.user.education[0]?.level ?? null,
+      hasLaptop: f.user.profile?.hasLaptop ?? null,
+      hasSmartphone: f.user.profile?.hasSmartphone ?? null,
+      internetAccess: f.user.profile?.internetAccess ?? null,
+    })),
   });
 
   return (
@@ -143,6 +179,94 @@ export default async function AdminFeedbackPage() {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="mt-8">
+        <h2 className="font-display text-lg font-bold text-ink">Beta cohort</h2>
+        <p className="mt-1 max-w-xl text-sm text-ink-soft">
+          Same aggregate-only guarantee as above, scoped to accounts marked as beta
+          (<code className="text-xs">isBetaUser</code>) — nothing here identifies which beta
+          participant said what, only which profile types and reasons the negative feedback
+          clusters around.
+        </p>
+
+        {betaPatterns.criticalReportCount > 0 && (
+          <div className="mt-4 card border-orange-400 bg-orange-50">
+            <h3 className="font-display text-sm font-bold text-orange-700">
+              {betaPatterns.criticalReportCount} report{betaPatterns.criticalReportCount === 1 ? "" : "s"} flagged as inappropriate
+            </h3>
+            <p className="mt-1 text-xs text-ink-soft">
+              Treated as critical by default (docs/PHASE_7_FAILURE_LEVELS.md) — escalate and
+              review the underlying career page directly, not routine quality triage.
+            </p>
+            <div className="mt-3 space-y-2.5">
+              {betaPatterns.criticalReportsByCareer.map((c) => (
+                <LabeledCountBar key={c.label} item={c} max={betaPatterns.criticalReportsByCareer[0]?.count ?? 1} barColorClass="bg-orange-500" />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 grid gap-6 lg:grid-cols-2">
+          <div className="card">
+            <h3 className="font-display text-sm font-bold text-ink">Negative feedback by education level</h3>
+            <p className="mt-1 text-xs text-ink-faint">Which student-type mix is finding matches least useful.</p>
+            <div className="mt-4 space-y-2.5">
+              {betaPatterns.negativeFeedbackByEducationLevel.length === 0 && <p className="text-sm text-ink-soft">No beta feedback yet.</p>}
+              {betaPatterns.negativeFeedbackByEducationLevel.map((b) => (
+                <LabeledCountBar key={b.label} item={b} max={betaPatterns.negativeFeedbackByEducationLevel[0]?.count ?? 1} barColorClass="bg-orange-400" />
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 className="font-display text-sm font-bold text-ink">Negative feedback by age range</h3>
+            <p className="mt-1 text-xs text-ink-faint">Whether one age group is disproportionately unhappy with its matches.</p>
+            <div className="mt-4 space-y-2.5">
+              {betaPatterns.negativeFeedbackByAgeRange.length === 0 && <p className="text-sm text-ink-soft">No beta feedback yet.</p>}
+              {betaPatterns.negativeFeedbackByAgeRange.map((b) => (
+                <LabeledCountBar key={b.label} item={b} max={betaPatterns.negativeFeedbackByAgeRange[0]?.count ?? 1} barColorClass="bg-orange-400" />
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 className="font-display text-sm font-bold text-ink">Negative feedback by internet access</h3>
+            <p className="mt-1 text-xs text-ink-faint">A proxy for connectivity-related friction, not a direct technical-error count.</p>
+            <div className="mt-4 space-y-2.5">
+              {betaPatterns.negativeFeedbackByInternetAccess.length === 0 && <p className="text-sm text-ink-soft">No beta feedback yet.</p>}
+              {betaPatterns.negativeFeedbackByInternetAccess.map((b) => (
+                <LabeledCountBar key={b.label} item={b} max={betaPatterns.negativeFeedbackByInternetAccess[0]?.count ?? 1} barColorClass="bg-orange-400" />
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 className="font-display text-sm font-bold text-ink">Negative feedback by device access</h3>
+            <p className="mt-1 text-xs text-ink-faint">A proxy for device-related friction, not a direct technical-error count.</p>
+            <div className="mt-4 space-y-2.5">
+              {betaPatterns.negativeFeedbackByDeviceAccess.length === 0 && <p className="text-sm text-ink-soft">No beta feedback yet.</p>}
+              {betaPatterns.negativeFeedbackByDeviceAccess.map((b) => (
+                <LabeledCountBar key={b.label} item={b} max={betaPatterns.negativeFeedbackByDeviceAccess[0]?.count ?? 1} barColorClass="bg-orange-400" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LabeledCountBar({ item, max, barColorClass }: { item: LabeledCount; max: number; barColorClass: string }) {
+  const widthPercent = max > 0 ? Math.round((item.count / max) * 100) : 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-ink">{item.label}</span>
+        <span className="font-mono text-ink-faint">{item.count}</span>
+      </div>
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-sand-200">
+        <div className={"h-full rounded-full " + barColorClass} style={{ width: `${widthPercent}%` }} />
       </div>
     </div>
   );
